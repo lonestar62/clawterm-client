@@ -1,11 +1,12 @@
-BINARY   = clawterm-client
-WIN_BIN  = clawterm-client.exe
-MODULE   = github.com/lonestar62/clawterm-client
+BINARY       = clawterm-client
+WIN_BIN      = clawterm.exe
+INSTALLER_EXE = ClawTermSetup-1.0.0.exe
+MODULE       = github.com/lonestar62/clawterm-client
 
 GO      ?= go
 LDFLAGS  = -s -w
 
-.PHONY: build windows linux mac clean
+.PHONY: build windows linux mac installer clean
 
 ## build — native binary (Linux amd64 on typical dev box)
 build:
@@ -24,8 +25,12 @@ windows:
 mac:
 	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BINARY)-mac .
 
+## installer — build Windows .exe and NSIS installer (requires makensis)
+installer: windows
+	makensis installer/clawterm-installer.nsi
+
 ## all — build all three targets
 all: build windows mac
 
 clean:
-	rm -f $(BINARY) $(WIN_BIN) $(BINARY)-mac
+	rm -f $(BINARY) $(WIN_BIN) $(BINARY)-mac $(INSTALLER_EXE)
