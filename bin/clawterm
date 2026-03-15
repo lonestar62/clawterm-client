@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * ClawTerm — CLI entry point
+ * Usage: clawterm [--host <host>] [--port <port>] [--session <key>]
+ *                 [--thinking <level>] [--message <text>] [--deliver]
+ *                 [--timeout-ms <ms>]
+ */
+
+const minimist  = require('minimist');
+const { runApp } = require('../src/app');
+
+const argv = minimist(process.argv.slice(2), {
+  string:  ['host', 'port', 'session', 'thinking', 'message', 'timeout-ms'],
+  boolean: ['deliver', 'help', 'version'],
+  alias: {
+    h: 'help',
+    v: 'version',
+  },
+});
+
+if (argv.help) {
+  console.log([
+    'ClawTerm — terminal client for clawtermd',
+    '',
+    'Usage: clawterm [options]',
+    '',
+    'Options:',
+    '  --host <host>        clawtermd host (default: localhost, env: CT_HOST)',
+    '  --port <port>        clawtermd port (default: 7220,     env: CT_PORT)',
+    '  --session <key>      session key    (default: main)',
+    '  --thinking <level>   thinking level (off|low|medium|high)',
+    '  --message <text>     send an initial message after connecting',
+    '  --deliver            request server to deliver assistant replies',
+    '  --timeout-ms <ms>    agent timeout in milliseconds',
+    '  -h, --help           show this help',
+    '  -v, --version        show version',
+    '',
+    'Environment:',
+    '  CT_HOST   override host',
+    '  CT_PORT   override port',
+  ].join('\n'));
+  process.exit(0);
+}
+
+if (argv.version) {
+  const pkg = require('../package.json');
+  console.log(`clawterm v${pkg.version}`);
+  process.exit(0);
+}
+
+runApp({
+  host:      argv.host,
+  port:      argv.port,
+  session:   argv.session,
+  thinking:  argv.thinking,
+  message:   argv.message,
+  deliver:   argv.deliver,
+  timeoutMs: argv['timeout-ms'] ? parseInt(argv['timeout-ms'], 10) : undefined,
+}).catch((err) => {
+  console.error('fatal:', err.message || String(err));
+  process.exit(1);
+});

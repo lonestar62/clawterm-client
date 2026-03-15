@@ -1,0 +1,45 @@
+{
+  "name": "clawterm-client",
+  "version": "1.0.0",
+  "description": "ClawTerm — Windows-compatible terminal client for clawtermd",
+  "main": "src/app.js",
+  "bin": {
+    "clawterm": "./bin/clawterm"
+  },
+  "scripts": {
+    "start": "node bin/clawterm",
+    "build": "npx pkg . --targets node18-linux-x64,node18-win-x64,node18-macos-x64 --output dist/clawterm",
+    "build:windows": "npx pkg . --targets node18-win-x64 --output dist/clawterm.exe",
+    "build:linux": "npx pkg . --targets node18-linux-x64 --output dist/clawterm-linux",
+    "build:macos": "npx pkg . --targets node18-macos-x64 --output dist/clawterm-macos"
+  },
+  "pkg": {
+    "targets": [
+      "node18-win-x64",
+      "node18-linux-x64",
+      "node18-macos-x64"
+    ],
+    "outputPath": "dist",
+    "assets": []
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "chalk": "^4.1.2",
+    "cli-highlight": "^2.1.11",
+    "minimist": "^1.2.8"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "keywords": [
+    "clawterm",
+    "terminal",
+    "tui",
+    "ai",
+    "chat"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  }
+}

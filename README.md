@@ -1,92 +1,145 @@
-# ClawTerm VT220 Client
+# ClawTerm Client
 
-A VT220-style terminal client for the [ClawTerm](https://github.com/lonestar62/clawterm-client) session-persistent binary protocol, built in Go with a green-on-black phosphor aesthetic.
+Windows-compatible terminal clients for [clawtermd](https://github.com/lonestar62/clawterm-client) — two implementations in one repo:
 
-## Features
+| Client | Stack | Look & Feel |
+|--------|-------|-------------|
+| **Node.js TUI** (`bin/clawterm`) | Node.js + blessed + chalk | Identical to OpenClaw TUI — markdown, thinking mode, streaming |
+| **Go VT220** (`clawterm-client`) | Go + tcell | Phosphor-green VT220 aesthetic |
 
-- Full ClawTerm protocol: `CONNECT → ACCEPT → DATA` bidirectional stream
-- Session persistence: `SUSPEND` on disconnect, `RESUME` on reconnect
-- 30-second keepalives
-- Scrollback buffer (5000 lines) with PgUp/PgDn and mouse-wheel scrolling
-- VT220 aesthetic: phosphor green on black, monospace, box-drawing borders
-- Single static binary, zero runtime dependencies
-- Cross-compiles to Windows `.exe`, Linux, and macOS
+---
 
-## Quick Start
+## Node.js TUI (OpenClaw-Compatible)
+
+Full-featured terminal client that **looks and behaves identically to the OpenClaw TUI** — same layout, same UX, same keyboard shortcuts — but connects via the ClawTerm binary protocol over TCP instead of WebSocket.
+
+### Features
+
+- **Identical layout** to OpenClaw TUI: header · chat log · status bar · footer · editor
+- **Thinking mode** — real-time streaming AI reasoning blocks, toggle with `Ctrl+T`
+- **Markdown rendering** — headings, bold, italic, code blocks, lists, blockquotes
+- **Streaming responses** — live delta updates as the AI responds
+- **Session persistence** — session ID stored in `~/.clawterm/session.json`, auto-resumed
+- **Slash commands** — `/help`, `/think`, `/model`, `/session`, `/new`, `/reset`, `/abort`, etc.
+- **Input history** — Up/Down arrows
+- **Windows `.exe`** — packaged with `pkg`, zero Node.js runtime required
+- **Configurable** — `CT_HOST`, `CT_PORT` env vars or `--host`/`--port` flags
+
+### Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Run (requires Node.js 16+)
+npm start
+
+# With options
+node bin/clawterm --host 192.168.1.10 --port 7220 --session main
+
+# Environment variables
+CT_HOST=myserver CT_PORT=7220 node bin/clawterm
+```
+
+### Build Windows .exe
+
+```bash
+# Build all platforms
+npm run build
+
+# Windows only
+npm run build:windows
+# → dist/clawterm.exe
+
+# Via Makefile
+make node-windows
+```
+
+### CLI Options
+
+| Flag | Default | Env | Description |
+|------|---------|-----|-------------|
+| `--host <host>` | `localhost` | `CT_HOST` | clawtermd host |
+| `--port <port>` | `7220` | `CT_PORT` | TCP port |
+| `--session <key>` | `main` | — | Session key |
+| `--thinking <level>` | — | — | Thinking level override |
+| `--message <text>` | — | — | Send initial message after connect |
+| `--deliver` | `false` | — | Request server delivery |
+| `--timeout-ms <ms>` | — | — | Agent timeout |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message |
+| `Up` / `Down` | Input history |
+| `Ctrl+T` | Toggle thinking block display |
+| `Ctrl+O` | Toggle tool output (expanded/collapsed) |
+| `Ctrl+C` | Clear input / exit (press twice) |
+| `Ctrl+D` | Exit |
+| `Escape` | Abort active run |
+
+### Slash Commands
+
+```
+/help                    — show this help
+/status                  — server status
+/session <key>           — switch session
+/sessions                — session picker
+/model <name>            — set model
+/models                  — model picker
+/think <level>           — set thinking level (off/low/medium/high)
+/verbose <on|off>        — toggle verbose tool output
+/usage <off|tokens|full> — token usage footer
+/new                     — start new session
+/reset                   — reset current session
+/abort                   — abort active run
+/settings                — open settings overlay
+/exit  /quit             — exit ClawTerm
+```
+
+### Thinking Mode
+
+When the AI uses extended thinking, ClawTerm renders reasoning blocks **above** the final response in a distinct dim style:
+
+```
+  [🤔 thinking]
+  The user is asking about X. Let me think through this...
+  First, I should consider...
+
+ The answer is: ...
+```
+
+Toggle with `Ctrl+T` or `/settings`. The thinking blocks stream in real-time as the AI reasons.
+
+---
+
+## Go VT220 Client
+
+A compact, zero-dependency VT220-style terminal client with phosphor-green aesthetics.
+
+### Quick Start
 
 ```bash
 # Linux / macOS
-./clawterm-client -host localhost -port 7220 -tenant 1 -agent 42 \
-  -token 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+./clawterm-client -host localhost -port 7220
 
 # Windows
-clawterm-client.exe -host 192.168.1.10 -port 7220 -tenant 1 -agent 42
+clawterm-client.exe -host 192.168.1.10 -port 7220
 ```
 
-## CLI Flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `-host` | `localhost` | ClawTerm server hostname / IP |
-| `-port` | `7220` | TCP port |
-| `-tenant` | `0` | Tenant ID (uint32) |
-| `-agent` | `0` | Agent ID (uint32) |
-| `-token` | `""` | Auth token — 64 hex chars (32 bytes) |
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|---|---|
-| Enter | Send input line |
-| Backspace / Delete | Edit input |
-| ← / → | Move cursor in input |
-| Home / Ctrl-A | Start of input |
-| End / Ctrl-E | End of input |
-| PgUp / PgDn | Scroll output |
-| Mouse wheel | Scroll output |
-| Ctrl-Q / Ctrl-C | Quit |
-
-## Building
-
-### Prerequisites
-
-- Go 1.24+ (`go version`)
-- For cross-compilation to Windows: no extra tools needed (`CGO_ENABLED=0`)
-
-### Build Commands
+### Build
 
 ```bash
-# Clone
-git clone https://github.com/lonestar62/clawterm-client.git
-cd clawterm-client
-
-# Linux (native)
-make build
-
-# Windows .exe (cross-compile from Linux/macOS)
-make windows
-
-# macOS arm64
-make mac
-
-# All targets
-make all
-
-# Clean
-make clean
+make build      # Linux amd64
+make windows    # Windows .exe
+make mac        # macOS arm64
+make all        # All targets
 ```
 
-### Direct `go build`
+---
 
-```bash
-# Linux
-go build -ldflags "-s -w" -o clawterm-client .
-
-# Windows .exe
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w" -o clawterm-client.exe .
-```
-
-## Protocol Reference
+## ClawTerm Protocol
 
 ```
 Wire format:
@@ -94,38 +147,57 @@ Wire format:
 
 Flag:      0x7E (always)
 Overhead:  15 bytes
-Server:    TCP port 7220
-CRC16:     CRC-16/IBM (poly 0x8005, init 0x0000) over FLAG..PAYLOAD
+Server:    TCP port 7220 (default)
+CRC16:     CRC-16/IBM (poly 0x8005, refIn=true, refOut=true)
 
 Frame types:
-  CT_CONNECT=0x01  CT_ACCEPT=0x02   CT_RESUME=0x03   CT_RESUMED=0x04
-  CT_DATA=0x10     CT_ACK=0x11      CT_NACK=0x12
-  CT_KEEPALIVE=0x20  CT_SUSPEND=0x30  CT_DISCONNECT=0x40  CT_ERROR=0xFF
+  CT_CONNECT=0x01   establish session
+  CT_ACCEPT=0x02    server grants session_id
+  CT_RESUME=0x03    reconnect with stored session_id
+  CT_DATA=0x10      bidirectional UTF-8 JSON (same envelope as OpenClaw WebSocket)
+  CT_KEEPALIVE=0x20 heartbeat every 30s
+  CT_SUSPEND=0x30   going away, keep session alive server-side
+  CT_DISCONNECT=0x40 clean shutdown
+
+CT_CONNECT payload (59 bytes):
+  version(1) + capabilities(2BE) + tenant_id(4BE) + agent_id(4BE)
+  + token(32 bytes, zero) + nonce(16 random bytes)
+
+CT_DATA payload: UTF-8 JSON
+  Request:  {"id":"req-1","method":"chat.send","params":{...}}
+  Response: {"id":"req-1","result":{...}}
+  Event:    {"event":"chat","payload":{...},"seq":42}
 ```
+
+---
 
 ## Project Layout
 
 ```
 .
-├── main.go              Entry point, CLI flags
-├── protocol/
-│   └── clawterm.go      Frame encode/decode, CRC16
-├── client/
-│   └── client.go        TCP connection, session management, reconnect
-├── ui/
-│   └── ui.go            tcell VT220 terminal UI
-├── go.mod
-├── go.sum
+├── bin/
+│   └── clawterm          CLI entry point (Node.js TUI)
+├── src/
+│   ├── app.js            Main application logic
+│   ├── client.js         ClawTerm JSON-RPC client
+│   ├── protocol.js       Binary protocol (CRC16, frame encode/decode)
+│   ├── tui.js            Blessed terminal UI
+│   ├── assembler.js      Stream assembler (thinking + text blocks)
+│   └── markdown.js       Markdown-to-ANSI renderer
+├── package.json
 ├── Makefile
-└── README.md
+│
+├── main.go               Go VT220 client entry point
+├── protocol/
+│   └── clawterm.go       Go frame encode/decode
+├── client/
+│   └── client.go         Go TCP client
+├── ui/
+│   └── ui.go             Go tcell UI
+├── go.mod
+└── go.sum
 ```
 
 ## License
 
 MIT
-
-## Build Verification
-
-Both targets confirmed compiling clean:
-- `clawterm-client` (Linux amd64, 3.3 MB)
-- `clawterm-client.exe` (Windows amd64, 3.1 MB, `CGO_ENABLED=0`)
