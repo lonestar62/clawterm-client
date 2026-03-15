@@ -1,0 +1,35 @@
+{
+  "name": "clawterm",
+  "version": "1.0.0",
+  "description": "ClawTerm — Windows-compatible terminal client for clawtermd",
+  "type": "module",
+  "main": "src/cli.js",
+  "bin": {
+    "clawterm": "bin/clawterm"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "bundle": "node_modules/.bin/esbuild src/cli.js --bundle --platform=node --format=cjs --outfile=dist/bundle.cjs --external:node:* --define:process.env.NODE_ENV='\"production\"'",
+    "build": "npm run bundle && node_modules/.bin/pkg dist/bundle.cjs --targets node18-win-x64 --output dist/clawterm.exe",
+    "build:linux": "npm run bundle && node_modules/.bin/pkg dist/bundle.cjs --targets node18-linux-x64 --output dist/clawterm-linux",
+    "build:macos": "npm run bundle && node_modules/.bin/pkg dist/bundle.cjs --targets node18-macos-x64 --output dist/clawterm-macos",
+    "build:all": "npm run bundle && node_modules/.bin/pkg dist/bundle.cjs --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --output dist/clawterm"
+  },
+  "dependencies": {
+    "@mariozechner/pi-tui": "^0.58.1",
+    "chalk": "^5.3.0",
+    "cli-highlight": "^2.1.11"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [],
+    "scripts": "dist/bundle.cjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
