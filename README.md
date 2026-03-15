@@ -123,3 +123,9 @@ Frame types:
 ## License
 
 MIT
+
+## Build Verification
+
+Both targets confirmed compiling clean:
+- `clawterm-client` (Linux amd64, 3.3 MB)
+- `clawterm-client.exe` (Windows amd64, 3.1 MB, `CGO_ENABLED=0`)
