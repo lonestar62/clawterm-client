@@ -40,23 +40,22 @@ function crc16(buf) {
 
 // Encode a ClawTerm frame to ArrayBuffer
 function encodeFrame(sessionId, seq, type, flags, payload) {
-  const payloadLen = payload ? payload.length : 0;
+  const payloadLen = payload ? payload.byteLength || payload.length : 0;
   const buf = new ArrayBuffer(13 + payloadLen + 2);
   const view = new DataView(buf);
   const u8 = new Uint8Array(buf);
 
-  view.setUint8(0, 0x7E);           // flag
-  view.setUint32(1, sessionId);     // session_id (big-endian)
-  view.setUint32(5, seq);           // seq
-  view.setUint8(9, type);           // type
-  view.setUint8(10, flags);         // flags
-  view.setUint16(11, payloadLen);   // len
+  view.setUint8(0, 0x7E);
+  view.setUint32(1, sessionId);
+  view.setUint32(5, seq);
+  view.setUint8(9, type);
+  view.setUint8(10, flags);
+  view.setUint16(11, payloadLen);
 
   if (payload) {
-    u8.set(new Uint8Array(payload), 13);
+    u8.set(new Uint8Array(payload instanceof ArrayBuffer ? payload : payload.buffer || payload), 13);
   }
 
-  // CRC over everything except flag byte and CRC itself
   const crcBuf = u8.slice(1, 13 + payloadLen);
   const crc = crc16(crcBuf);
   view.setUint16(13 + payloadLen, crc);
@@ -99,71 +98,101 @@ class ClawTermClient {
     this.sessionId = 0;
     this.seq = 0;
     this.connected = false;
-    this.onData = null;      // callback(text)
-    this.onConnect = null;   // callback(sessionId)
+    this.onData = null;
+    this.onConnect = null;
     this.onDisconnect = null;
+    this.onIpUp = null;
+    this.onIpDown = null;
     this.recvBuf = new Uint8Array(0);
   }
 
-  connect(resumeSessionId) {
+  // applid: 8-char string, space-padded, uppercase (e.g. "CLAW    ")
+  connect(resumeSessionId, applid) {
     this.ws = new WebSocket(this.wsUrl);
     this.ws.binaryType = 'arraybuffer';
 
     this.ws.onopen = () => {
-      console.log('[ClawTerm] WS open, sending CF_CONNECT');
-      const payload = new Uint8Array(4);
       if (resumeSessionId) {
         // CF_RESUME
-        const view = new DataView(payload.buffer);
+        const view = new DataView(new ArrayBuffer(8));
         view.setUint32(0, resumeSessionId);
-        this._send(resumeSessionId, CF.RESUME, 0, payload.buffer);
+        view.setUint32(4, 0); // last_seq = 0
+        this._send(resumeSessionId, CF.RESUME, 0, view.buffer);
       } else {
-        // CF_CONNECT
-        this._send(0, CF.CONNECT, 0, null);
+        // CF_CONNECT with APPLID payload
+        const enc = new TextEncoder();
+        const applidStr = (applid || 'CLAW    ')
+          .toUpperCase()
+          .padEnd(8, ' ')
+          .substring(0, 8);
+        const applidBytes = enc.encode(applidStr); // 8 bytes
+        this._send(0, CF.CONNECT, 0, applidBytes.buffer);
+        console.log('[ClawTerm] CF_CONNECT APPLID=' + JSON.stringify(applidStr));
       }
     };
 
-    this.ws.onmessage = (evt) => {
-      this._recv(evt.data);
-    };
+    this.ws.onmessage = (evt) => this._recv(evt.data);
 
     this.ws.onclose = () => {
       this.connected = false;
       if (this.onDisconnect) this.onDisconnect();
+    };
+
+    this.ws.onerror = () => {
+      // onerror fires before onclose, let onclose handle state
     };
   }
 
   sendData(text) {
     if (!this.connected) return;
     const enc = new TextEncoder();
-    const payload = enc.encode(text);
-    this._send(this.sessionId, CF.DATA, 0, payload.buffer);
+    this._send(this.sessionId, CF.DATA, 0, enc.encode(text).buffer);
   }
 
   sendPing() {
     this._send(this.sessionId, CF.PING, 0, null);
   }
 
+  suspend() {
+    if (this.connected) {
+      this._send(this.sessionId, CF.SUSPEND, 0, null);
+    }
+    if (this.ws) this.ws.close();
+    this.connected = false;
+  }
+
   disconnect() {
     this._send(this.sessionId, CF.DISCONNECT, 0, null);
-    this.ws.close();
+    if (this.ws) this.ws.close();
+    this.connected = false;
   }
 
   _send(sessionId, type, flags, payload) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const frame = encodeFrame(sessionId, ++this.seq, type, flags, payload);
     this.ws.send(frame);
-    console.log(`[ClawTerm] → ${CF_NAMES[type]} session=0x${sessionId.toString(16).padStart(8,'0')}`);
+    console.log(`[ClawTerm] \u2192 ${CF_NAMES[type]} session=0x${sessionId.toString(16).padStart(8,'0')}`);
   }
 
   _recv(data) {
-    // Append to receive buffer
+    // Check for JSON control messages from bridge server
+    if (data instanceof ArrayBuffer) {
+      const text = new TextDecoder().decode(data);
+      if (text.startsWith('{')) {
+        try {
+          const ctrl = JSON.parse(text);
+          if (ctrl._ctrl === 'ip_up'   && this.onIpUp)   { this.onIpUp();              return; }
+          if (ctrl._ctrl === 'ip_down' && this.onIpDown)  { this.onIpDown(ctrl.reason); return; }
+        } catch(e) {}
+      }
+    }
+
     const incoming = new Uint8Array(data);
     const combined = new Uint8Array(this.recvBuf.length + incoming.length);
     combined.set(this.recvBuf);
     combined.set(incoming, this.recvBuf.length);
     this.recvBuf = combined;
 
-    // Parse frames
     while (this.recvBuf.length >= 15) {
       const frame = decodeFrame(this.recvBuf.buffer);
       if (!frame) break;
@@ -171,7 +200,7 @@ class ClawTermClient {
       const frameSize = 13 + frame.len + 2;
       this.recvBuf = this.recvBuf.slice(frameSize);
 
-      console.log(`[ClawTerm] ← ${CF_NAMES[frame.type]} session=0x${frame.sessionId.toString(16).padStart(8,'0')}`);
+      console.log(`[ClawTerm] \u2190 ${CF_NAMES[frame.type]} session=0x${frame.sessionId.toString(16).padStart(8,'0')}`);
 
       switch (frame.type) {
         case CF.ACCEPT:

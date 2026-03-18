@@ -6,51 +6,139 @@
   <title>ClawTerm</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
   <link rel="stylesheet" href="style.css">
+  <style>
+    .hdr-label {
+      font-size: 10px;
+      color: #555;
+      white-space: nowrap;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 1px;
+    }
+    #applid-input {
+      background: #0a0a0a;
+      border: 1px solid #00ff4144;
+      color: #00ff41;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      width: 76px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      outline: none;
+      border-radius: 3px;
+    }
+    #applid-input:focus { border-color: #00ff41; box-shadow: 0 0 6px #00ff4133; }
+  </style>
 </head>
 <body>
   <div id="header">
-    <span id="logo">⚡ ClawTerm</span>
-    <span id="session-info">disconnected</span>
-    <span id="status-dot" class="dot-red">●</span>
-    <button id="btn-connect">Connect</button>
-    <button id="btn-resume">Resume</button>
-    <button id="btn-disconnect">Disconnect</button>
-    <button id="btn-ping">Ping</button>
+    <span id="logo">&#x26a1; CLAWTERM</span>
+
+    <!-- Diagnostic indicators -->
+    <div class="diag-btn red hdr-btn" id="diag-ws" title="WebSocket: browser &rarr; fleet-vm">
+      <span class="diag-dot">&bull;</span> WS
+    </div>
+    <div class="diag-btn red hdr-btn" id="diag-ip" title="IP/TCP: fleet-vm &rarr; lobster:7220">
+      <span class="diag-dot">&bull;</span> IP
+    </div>
+    <div class="diag-btn red hdr-btn" id="diag-vt" title="VT220: ClawTerm session (CF_ACCEPT)">
+      <span class="diag-dot">&bull;</span> VT220
+    </div>
+
+    <span class="hdr-sep">|</span>
+
+    <!-- APPLID shortcut input -->
+    <span class="hdr-label">APPLID:</span>
+    <input type="text" id="applid-input" value="CLAW" maxlength="8"
+           placeholder="APPLID" title="Target APPLID &mdash; F2 for VTAM logon screen">
+
+    <span class="hdr-sep">|</span>
+
+    <!-- Session actions -->
+    <button class="hdr-btn act-btn" id="btn-connect">Connect</button>
+    <button class="hdr-btn act-btn amber" id="btn-resume">Resume</button>
+    <button class="hdr-btn act-btn red-btn" id="btn-disconnect">Disconnect</button>
+
+    <span class="hdr-sep">|</span>
+
+    <!-- F-keys -->
+    <button class="hdr-btn fkey-btn" id="btn-f1"  title="F1 &mdash; Help">          <span class="fkey-label">F1</span> Help</button>
+    <button class="hdr-btn fkey-btn" id="btn-f2"  title="F2 &mdash; VTAM Logon">    <span class="fkey-label">F2</span> VTAM</button>
+    <button class="hdr-btn fkey-btn" id="btn-f3"  title="F3 &mdash; List sessions"> <span class="fkey-label">F3</span> Sessions</button>
+    <button class="hdr-btn fkey-btn" id="btn-f5"  title="F5 &mdash; Suspend">       <span class="fkey-label">F5</span> Suspend</button>
+    <button class="hdr-btn fkey-btn" id="btn-f9"  title="F9 &mdash; Ping keepalive"><span class="fkey-label">F9</span> Ping</button>
+
+    <span class="hdr-sep">|</span>
+
+    <span id="session-info">no session</span>
   </div>
+
   <div id="terminal-container"></div>
+
   <div id="footer">
-    <span id="footer-session">session: —</span>
-    <span id="footer-seq">seq: 0</span>
-    <span id="footer-status">ClawTerm v0.1.0 · port 7220</span>
+    <span id="footer-session">session: &mdash;</span>
+    <span id="footer-diag">WS:&#x1F534; IP:&#x1F534; VT:&#x1F534;</span>
+    <span id="footer-status">ClawTerm v0.1.0 &middot; clawd :7220 &middot; lobster-1</span>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
   <script src="clawterm.js"></script>
   <script>
-    // Initialize xterm.js
+    // ── APPLID routing table (mirrors daemon) ──────────────────────────────
+    const APPLIDS = [
+      { applid: 'CLAW',   desc: 'Claw main agent',        host: '100.113.196.66',  port: 3000,  active: true  },
+      { applid: 'BRAIN',  desc: 'Brain neuroimaging',      host: '34.122.171.173',  port: 3001,  active: true  },
+      { applid: 'DEEP',   desc: 'DeepSeek-R1 (lobster)',   host: '100.114.163.66',  port: 11434, active: true  },
+      { applid: 'KEEPER', desc: 'Keeper NCL',              host: '34.122.171.173',  port: 3006,  active: true  },
+      { applid: 'FORGE',  desc: 'ClawForge portal',        host: '34.10.77.209',    port: 3010,  active: true  },
+      { applid: 'HURON',  desc: 'Huron County chatbot',    host: '34.122.171.173',  port: 5000,  active: false },
+    ];
+
+    // ── UI state ──────────────────────────────────────────────────────────
+    let uiState = 'splash'; // 'splash' | 'vtam' | 'session'
+    let vtamRefreshTimer = null;
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    const applidInput = document.getElementById('applid-input');
+
+    function getApplid() {
+      return (applidInput.value || 'CLAW').toUpperCase().padEnd(8, ' ').substring(0, 8);
+    }
+
+    // ── Diagnostics ───────────────────────────────────────────────────────
+    function setDiag(id, state, tooltip) {
+      const el = document.getElementById('diag-' + id);
+      el.className = 'diag-btn hdr-btn ' + state;
+      if (tooltip) el.title = tooltip;
+      updateFooter();
+    }
+
+    function updateFooter() {
+      const s = (id) => {
+        const c = document.getElementById('diag-' + id).className;
+        return c.includes('green') ? '\u{1F7E2}' : c.includes('yellow') ? '\u{1F7E1}' : '\u{1F534}';
+      };
+      document.getElementById('footer-diag').textContent =
+        `WS:${s('ws')} IP:${s('ip')} VT:${s('vt')}`;
+    }
+
+    // ── xterm.js setup ────────────────────────────────────────────────────
     const term = new Terminal({
       theme: {
-        background: '#0a0a0a',
-        foreground: '#00ff41',
-        cursor: '#00ff41',
-        cursorAccent: '#0a0a0a',
-        selection: '#00ff4133',
-        black: '#0a0a0a',
-        green: '#00ff41',
-        brightGreen: '#69ff47',
-        cyan: '#00b4d8',
-        brightCyan: '#90e0ef',
-        white: '#e0e0e0',
-        brightWhite: '#ffffff',
+        background: '#0a0a0a', foreground: '#00ff41',
+        cursor: '#00ff41', cursorAccent: '#0a0a0a',
+        selection: '#00ff4122',
+        green: '#00ff41', brightGreen: '#69ff47',
+        cyan: '#00b4d8', brightCyan: '#90e0ef',
+        yellow: '#ffcc44', red: '#ff6666',
+        white: '#cccccc', brightWhite: '#ffffff',
       },
       fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-      fontSize: 14,
-      lineHeight: 1.2,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      scrollback: 1000,
-      convertEol: true,
+      fontSize: 14, lineHeight: 1.2,
+      cursorBlink: true, cursorStyle: 'block',
+      scrollback: 2000, convertEol: true,
     });
 
     const fitAddon = new FitAddon.FitAddon();
@@ -59,75 +147,324 @@
     fitAddon.fit();
     window.addEventListener('resize', () => fitAddon.fit());
 
-    // ClawTerm client
-    const wsUrl = `ws://${window.location.host}/clawterm-ws`;
+    // ── ANSI helpers ──────────────────────────────────────────────────────
+    const A = {
+      reset:  '\x1b[0m',
+      cyan:   '\x1b[36m',   // dim cyan  — borders
+      bcyan:  '\x1b[96m',  // bright cyan — logo + f-key names
+      white:  '\x1b[37m',   // white — labels
+      bwhite: '\x1b[97m',  // bright white — APPLID names
+      bgreen: '\x1b[92m',  // bright green — values, active dot
+      dim:    '\x1b[2m',    // dim — underscores, IPs, offline dot
+    };
+
+    // Strip ANSI codes to measure visual width
+    function vis(s) { return s.replace(/\x1b\[[0-9;]*m/g, ''); }
+
+    // Build a double-box bordered line: content padded to fill 66 visual cols
+    // Total line: ║ + 66 chars + ║ = 68 visible chars
+    const INNER = 66;
+    function bl(content) {
+      const pad = Math.max(0, INNER - vis(content).length);
+      return A.cyan + '\u2551' + A.reset + content + ' '.repeat(pad) + A.cyan + '\u2551' + A.reset;
+    }
+
+    const BOX_TOP = A.cyan + '\u2554' + '\u2550'.repeat(INNER) + '\u2557' + A.reset;
+    const BOX_SEP = A.cyan + '\u2560' + '\u2550'.repeat(INNER) + '\u2563' + A.reset;
+    const BOX_BOT = A.cyan + '\u255a' + '\u2550'.repeat(INNER) + '\u255d' + A.reset;
+    const BOX_BLK = bl('');
+
+    // ── VTAM Screen render ────────────────────────────────────────────────
+    function renderVtam() {
+      const rawVal = (applidInput.value || '').toUpperCase().substring(0, 8);
+      const rest   = 8 - rawVal.length;
+
+      const applidLine =
+        A.white + '  APPLID  \u25b6  ' + A.reset +
+        (rawVal ? A.bgreen + rawVal + A.reset : '') +
+        (rest > 0 ? A.dim + '_'.repeat(rest) + A.reset : '');
+
+      // Logo — 6 lines of ASCII art in bright cyan
+      const L = A.bcyan;
+      const R = A.reset;
+      const logo = [
+        L+'    \u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2557    \u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2557   '+R,
+        L+'   \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2557    \u2588\u2557\u255a\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557  '+R,
+        L+'   \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551\u2588\u2557 \u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d  '+R,
+        L+'   \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551\u2588\u2557\u2588\u2588\u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2554\u2550\u2550\u255d  \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557  '+R,
+        L+'   \u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255d   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551  '+R,
+        L+'    \u255a\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u255d\u255a\u2550\u2550\u255d    \u255a\u2550\u255d   \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d   '+R,
+      ];
+
+      const net1 = A.white+'  NETWORK  :  '+A.bgreen+'CLAWNET-1'+A.white+'          NODE  :  '+A.bgreen+'LOBSTER-1'+A.reset;
+      const net2 = A.white+'  PROTOCOL :  '+A.bgreen+'CLAWTERM V0.1'+A.white+'      PORT  :  '+A.bgreen+'7220'+A.reset;
+
+      const applidRows = APPLIDS.map(a => {
+        const dot  = a.active ? A.bgreen + '\u25cf' + A.reset : A.dim + '\u25cb' + A.reset;
+        const name = A.bwhite + a.applid.padEnd(8) + A.reset;
+        const desc = A.white  + a.desc.padEnd(27)  + A.reset;
+        const addr = A.dim    + a.host + ':' + a.port + A.reset;
+        return bl('  ' + name + dot + '  ' + desc + addr);
+      });
+
+      const fkbar =
+        '  ' + A.bcyan+'ENTER'+A.white+'=LOGON  ' +
+                A.bcyan+'F1'+A.white+'=HELP  ' +
+                A.bcyan+'F3'+A.white+'=LIST  ' +
+                A.bcyan+'F5'+A.white+'=RESUME  ' +
+                A.bcyan+'F9'+A.white+'=PING  ' +
+                A.bcyan+'ESC'+A.white+'=BACK'+A.reset;
+
+      // ── Write to terminal ─────────────────────────────────────────────
+      term.write('\x1b[2J\x1b[H');
+      term.writeln(BOX_TOP);
+      term.writeln(BOX_BLK);
+      logo.forEach(line => term.writeln(bl(line)));
+      term.writeln(BOX_BLK);
+      term.writeln(bl(net1));
+      term.writeln(bl(net2));
+      term.writeln(BOX_BLK);
+      term.writeln(BOX_SEP);
+      term.writeln(BOX_BLK);
+      term.writeln(bl(applidLine));
+      term.writeln(BOX_BLK);
+      term.writeln(BOX_SEP);
+      applidRows.forEach(row => term.writeln(row));
+      term.writeln(BOX_SEP);
+      term.writeln(bl(fkbar));
+      term.write(BOX_BOT);
+    }
+
+    function showVtam() {
+      uiState = 'vtam';
+      renderVtam();
+      applidInput.focus();
+      applidInput.select();
+
+      // Live update VTAM screen as user types in the APPLID input
+      if (vtamRefreshTimer) clearInterval(vtamRefreshTimer);
+      vtamRefreshTimer = setInterval(() => {
+        if (uiState === 'vtam') renderVtam();
+      }, 150);
+    }
+
+    function stopVtamRefresh() {
+      if (vtamRefreshTimer) { clearInterval(vtamRefreshTimer); vtamRefreshTimer = null; }
+    }
+
+    // ── Splash Screen ─────────────────────────────────────────────────────
+    function showSplash() {
+      uiState = 'splash';
+      stopVtamRefresh();
+      term.write('\x1b[2J\x1b[H');
+      term.writeln('\x1b[36m');
+      term.writeln('  \u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2557    \u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2557   \u2588\u2588\u2588\u2557');
+      term.writeln(' \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2557    \u2588\u2557\u255a\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2551');
+      term.writeln(' \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551\u2588\u2557 \u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2554\u2588\u2588\u2588\u2588\u2554\u2588\u2588\u2551');
+      term.writeln(' \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551\u2588\u2557\u2588\u2588\u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2554\u2550\u2550\u255d  \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551\u255a\u2588\u2588\u2554\u255d\u2588\u2588\u2551');
+      term.writeln(' \u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255d   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u2588\u2588\u2551 \u255a\u2550\u255d \u2588\u2588\u2551');
+      term.writeln('  \u255a\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u255d\u255a\u2550\u2550\u255d    \u255a\u2550\u255d   \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d\u255a\u2550\u255d     \u255a\u2550\u255d');
+      term.writeln('\x1b[0m');
+      term.writeln('\x1b[90m  X.25-inspired session protocol \u00b7 Port 7220 (VT220) \u00b7 HDLC frames\x1b[0m\r\n');
+      term.writeln('  \x1b[33mWS\x1b[0m  browser \u2192 fleet-vm WebSocket');
+      term.writeln('  \x1b[33mIP\x1b[0m  fleet-vm TCP \u2192 lobster:7220 (clawd)');
+      term.writeln('  \x1b[33mVT220\x1b[0m  CF_ACCEPT \u00b7 session established\r\n');
+      term.writeln('  Press \x1b[92mF2\x1b[0m for VTAM logon \u00b7 \x1b[32mConnect\x1b[0m to quick-connect \u00b7 \x1b[36mF1\x1b[0m for help\r\n');
+    }
+
+    // ── ClawTerm client ───────────────────────────────────────────────────
+    const wsUrl = `wss://${window.location.host}/clawterm-ws`;
     const client = new ClawTermClient(wsUrl);
 
-    client.onConnect = (sessionId) => {
-      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
-      document.getElementById('session-info').textContent = `session: ${hex}`;
-      document.getElementById('status-dot').className = 'dot-green';
-      document.getElementById('footer-session').textContent = `session: ${hex}`;
-      term.writeln(`\r\n\x1b[32m● Connected to clawd\x1b[0m`);
-      term.writeln(`\x1b[36mSession ID: ${hex}\x1b[0m`);
-      term.writeln(`\x1b[90mClawTerm v0.1.0 · HDLC-inspired session protocol\x1b[0m`);
-      term.writeln(`\x1b[90mType anything — frames route to clawd on lobster\x1b[0m\r\n`);
-      term.write('$ ');
+    function doConnect(resumeId, applid) {
+      stopVtamRefresh();
+      uiState = 'session';
+
+      setDiag('ws', 'yellow', 'WS: connecting to fleet-vm...');
+      setDiag('ip', 'red',    'IP: waiting for WS...');
+      setDiag('vt', 'red',    'VT220: no session');
+
+      const applidStr = (applid || getApplid()).toUpperCase().padEnd(8, ' ').substring(0, 8);
+      client.connect(resumeId, applidStr);
+
+      client.ws.onopen = () => {
+        setDiag('ws', 'green', 'WS: fleet-vm \u2713');
+        setDiag('ip', 'yellow', 'IP: TCP \u2192 lobster:7220...');
+        term.write('\x1b[2J\x1b[H');
+        term.writeln('\x1b[32m[WS]\x1b[0m \u2713 fleet-vm connected');
+        term.writeln('\x1b[33m[IP]\x1b[0m TCP \u2192 lobster:7220...');
+        if (!resumeId) {
+          term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT APPLID=' + applidStr.trim() + '...');
+        }
+      };
+
+      client.ws.onerror = () => {
+        setDiag('ws', 'red', 'WS: failed \u2717');
+        setDiag('ip', 'red', 'IP: WS failed');
+        term.writeln('\x1b[31m[WS]\x1b[0m \u2717 WebSocket failed');
+      };
+    }
+
+    client.onIpUp = () => {
+      setDiag('ip', 'green', 'IP: lobster:7220 \u2713');
+      term.writeln('\x1b[32m[IP]\x1b[0m \u2713 lobster:7220 connected');
+      term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT \u2192 clawd...');
     };
 
-    client.onData = (text) => {
-      term.write(text);
-    };
-
-    client.onDisconnect = () => {
-      document.getElementById('session-info').textContent = 'disconnected';
-      document.getElementById('status-dot').className = 'dot-red';
-      term.writeln('\r\n\x1b[31m● Disconnected\x1b[0m');
-    };
-
-    // Keyboard input → CF_DATA
-    term.onData((data) => {
-      client.sendData(data);
-      term.write(data); // local echo
-    });
-
-    // Buttons
-    document.getElementById('btn-connect').onclick = () => {
-      client.connect(null);
-    };
-
-    document.getElementById('btn-resume').onclick = () => {
-      const saved = localStorage.getItem('clawterm_session_id');
-      if (saved) {
-        term.writeln(`\r\n\x1b[33mResuming session ${saved}...\x1b[0m`);
-        client.connect(parseInt(saved));
-      } else {
-        term.writeln('\r\n\x1b[31mNo saved session to resume\x1b[0m');
+    client.onIpDown = (reason) => {
+      setDiag('ip', 'red', 'IP: lost \u2014 ' + (reason || '?'));
+      setDiag('vt', 'red', 'VT220: session suspended');
+      if (uiState === 'session') {
+        term.writeln('\x1b[31m[IP]\x1b[0m \u2717 lost: ' + (reason || 'TCP closed'));
       }
     };
 
+    client.onConnect = (sessionId) => {
+      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
+      setDiag('vt', 'green', 'VT220: session ' + hex + ' \u2713');
+      document.getElementById('session-info').textContent = 'session ' + hex;
+      document.getElementById('footer-session').textContent = 'session: ' + hex;
+      localStorage.setItem('clawterm_session_id', sessionId);
+      term.writeln('\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 session ' + hex);
+      term.writeln('\x1b[90m    All layers green. Type to send CF_DATA.\x1b[0m\r\n');
+      term.write('\x1b[32m$\x1b[0m ');
+    };
+
+    client.onData = (text) => term.write(text);
+
+    client.onDisconnect = () => {
+      setDiag('ws', 'red', 'WS: closed');
+      setDiag('ip', 'red', 'IP: closed');
+      setDiag('vt', 'red', 'VT220: suspended \u2014 F5/Resume to restore');
+      document.getElementById('session-info').textContent = 'suspended';
+      if (uiState === 'session') {
+        term.writeln('\r\n\x1b[31m[WS]\x1b[0m Disconnected \u2014 session held on clawd');
+        term.writeln('\x1b[33m     Press Resume or F5 to restore\x1b[0m');
+      }
+    };
+
+    // Keyboard input in session mode
+    term.onData((data) => {
+      if (uiState !== 'session') return;
+      client.sendData(data);
+      term.write(data);
+    });
+
+    // ── ESC handler — universal back ──────────────────────────────────────
+    function handleEsc() {
+      if (uiState === 'session') {
+        // Suspend session, go to VTAM
+        client.suspend();
+        setDiag('vt', 'red', 'VT220: suspended');
+        document.getElementById('session-info').textContent = 'suspended';
+        showVtam();
+      } else if (uiState === 'vtam') {
+        // Back to splash
+        stopVtamRefresh();
+        showSplash();
+      }
+      // If splash, ESC does nothing
+    }
+
+    // ── Button handlers ───────────────────────────────────────────────────
+    document.getElementById('btn-connect').onclick    = () => doConnect(null);
     document.getElementById('btn-disconnect').onclick = () => {
       client.disconnect();
+      setDiag('ws', 'red', 'WS: closed');
+      setDiag('ip', 'red', 'IP: closed');
+      setDiag('vt', 'red', 'VT220: disconnected');
+      document.getElementById('session-info').textContent = 'no session';
+      showSplash();
     };
-
-    document.getElementById('btn-ping').onclick = () => {
+    document.getElementById('btn-f9').onclick = () => {
       client.sendPing();
-      term.writeln('\r\n\x1b[90m→ CF_PING sent\x1b[0m');
+      if (uiState === 'session') term.writeln('\r\n\x1b[90m\u2192 CF_PING\x1b[0m');
     };
 
-    // Splash screen
-    term.writeln('\x1b[36m');
-    term.writeln('  ██████╗██╗      █████╗ ██╗    ██╗████████╗███████╗██████╗ ███╗   ███╗');
-    term.writeln(' ██╔════╝██║     ██╔══██╗██║    ██║╚══██╔══╝██╔════╝██╔══██╗████╗ ████║');
-    term.writeln(' ██║     ██║     ███████║██║ █╗ ██║   ██║   █████╗  ██████╔╝██╔████╔██║');
-    term.writeln(' ██║     ██║     ██╔══██║██║███╗██║   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║');
-    term.writeln(' ╚██████╗███████╗██║  ██║╚███╔███╔╝   ██║   ███████╗██║  ██║██║ ╚═╝ ██║');
-    term.writeln('  ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝');
-    term.writeln('\x1b[0m');
-    term.writeln('\x1b[90mSession-oriented binary protocol for persistent AI agent terminals\x1b[0m');
-    term.writeln('\x1b[90mInspired by X.25 virtual circuits · Port 7220 (nod to VT220)\x1b[0m\r\n');
-    term.writeln('Press \x1b[32mConnect\x1b[0m to establish a ClawTerm session with clawd on lobster.');
-    term.writeln('Press \x1b[33mResume\x1b[0m to reconnect to a previous session.\r\n');
+    document.getElementById('btn-resume').onclick =
+    document.getElementById('btn-f5').onclick = () => {
+      const saved = localStorage.getItem('clawterm_session_id');
+      if (saved) {
+        if (uiState === 'session') {
+          term.writeln('\r\n\x1b[33m[VT]\x1b[0m CF_RESUME session ' + saved + '...');
+        }
+        doConnect(parseInt(saved));
+      } else {
+        if (uiState === 'session') term.writeln('\r\n\x1b[31mNo saved session \u2014 use Connect\x1b[0m');
+        else showVtam();
+      }
+    };
+
+    document.getElementById('btn-f1').onclick = () => {
+      if (uiState !== 'session') {
+        showSplash();
+        setTimeout(() => {
+          term.writeln('\r\n\x1b[96mClawTerm v0.1.0 \u2014 Key Reference\x1b[0m');
+          term.writeln('  F1  This help');
+          term.writeln('  F2  VTAM logon screen (type APPLID + ENTER to connect)');
+          term.writeln('  F5  Suspend/Resume (CF_SUSPEND / CF_RESUME)');
+          term.writeln('  F9  Ping keepalive (CF_PING \u2192 CF_PONG)');
+          term.writeln('  ESC From session \u2192 VTAM \u00b7 From VTAM \u2192 splash');
+          term.writeln('  Diag: WS=WebSocket  IP=TCP/lobster  VT220=session\r\n');
+        }, 50);
+      } else {
+        term.writeln('\r\n\x1b[96mClawTerm v0.1.0 \u2014 Key Reference\x1b[0m');
+        term.writeln('  ESC  Back to VTAM logon  F9  Ping\r\n');
+      }
+    };
+
+    document.getElementById('btn-f2').onclick = () => showVtam();
+
+    document.getElementById('btn-f3').onclick = () => {
+      const saved = localStorage.getItem('clawterm_session_id');
+      if (uiState === 'session') {
+        term.writeln('\r\n\x1b[96mSaved sessions:\x1b[0m');
+        term.writeln('  ' + (saved ? '0x' + parseInt(saved).toString(16).toUpperCase().padStart(8,'0') + ' (last)' : 'none'));
+        term.writeln('');
+      }
+    };
+
+    // ── APPLID input: live update VTAM screen + ENTER to connect ─────────
+    applidInput.addEventListener('input', () => {
+      if (uiState === 'vtam') renderVtam();
+    });
+
+    applidInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && uiState === 'vtam') {
+        e.preventDefault();
+        doConnect(null, getApplid());
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleEsc();
+      }
+    });
+
+    // ── Keyboard F-key passthrough ────────────────────────────────────────
+    document.addEventListener('keydown', (e) => {
+      // ESC key — but not when focus is on applid-input (handled above)
+      if (e.key === 'Escape' && document.activeElement !== applidInput) {
+        e.preventDefault();
+        handleEsc();
+        return;
+      }
+
+      // ENTER on VTAM screen
+      if (e.key === 'Enter' && uiState === 'vtam' && document.activeElement !== applidInput) {
+        e.preventDefault();
+        doConnect(null, getApplid());
+        return;
+      }
+
+      if (e.key === 'F1') { e.preventDefault(); document.getElementById('btn-f1').click(); }
+      if (e.key === 'F2') { e.preventDefault(); document.getElementById('btn-f2').click(); }
+      if (e.key === 'F3') { e.preventDefault(); document.getElementById('btn-f3').click(); }
+      if (e.key === 'F5') { e.preventDefault(); document.getElementById('btn-f5').click(); }
+      if (e.key === 'F9') { e.preventDefault(); document.getElementById('btn-f9').click(); }
+    });
+
+    // ── Boot: show splash ─────────────────────────────────────────────────
+    showSplash();
   </script>
 </body>
 </html>
