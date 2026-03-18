@@ -1,0 +1,13 @@
+{
+  "name": "clawterm-client",
+  "version": "0.1.0",
+  "description": "ClawTerm web terminal client — xterm.js + WebSocket bridge to clawd",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "ws": "^8.16.0"
+  }
+}

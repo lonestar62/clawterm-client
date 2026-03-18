@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawTerm</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="header">
+    <span id="logo">⚡ ClawTerm</span>
+    <span id="session-info">disconnected</span>
+    <span id="status-dot" class="dot-red">●</span>
+    <button id="btn-connect">Connect</button>
+    <button id="btn-resume">Resume</button>
+    <button id="btn-disconnect">Disconnect</button>
+    <button id="btn-ping">Ping</button>
+  </div>
+  <div id="terminal-container"></div>
+  <div id="footer">
+    <span id="footer-session">session: —</span>
+    <span id="footer-seq">seq: 0</span>
+    <span id="footer-status">ClawTerm v0.1.0 · port 7220</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+  <script src="clawterm.js"></script>
+  <script>
+    // Initialize xterm.js
+    const term = new Terminal({
+      theme: {
+        background: '#0a0a0a',
+        foreground: '#00ff41',
+        cursor: '#00ff41',
+        cursorAccent: '#0a0a0a',
+        selection: '#00ff4133',
+        black: '#0a0a0a',
+        green: '#00ff41',
+        brightGreen: '#69ff47',
+        cyan: '#00b4d8',
+        brightCyan: '#90e0ef',
+        white: '#e0e0e0',
+        brightWhite: '#ffffff',
+      },
+      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+      fontSize: 14,
+      lineHeight: 1.2,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 1000,
+      convertEol: true,
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal-container'));
+    fitAddon.fit();
+    window.addEventListener('resize', () => fitAddon.fit());
+
+    // ClawTerm client
+    const wsUrl = `ws://${window.location.host}/clawterm-ws`;
+    const client = new ClawTermClient(wsUrl);
+
+    client.onConnect = (sessionId) => {
+      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
+      document.getElementById('session-info').textContent = `session: ${hex}`;
+      document.getElementById('status-dot').className = 'dot-green';
+      document.getElementById('footer-session').textContent = `session: ${hex}`;
+      term.writeln(`\r\n\x1b[32m● Connected to clawd\x1b[0m`);
+      term.writeln(`\x1b[36mSession ID: ${hex}\x1b[0m`);
+      term.writeln(`\x1b[90mClawTerm v0.1.0 · HDLC-inspired session protocol\x1b[0m`);
+      term.writeln(`\x1b[90mType anything — frames route to clawd on lobster\x1b[0m\r\n`);
+      term.write('$ ');
+    };
+
+    client.onData = (text) => {
+      term.write(text);
+    };
+
+    client.onDisconnect = () => {
+      document.getElementById('session-info').textContent = 'disconnected';
+      document.getElementById('status-dot').className = 'dot-red';
+      term.writeln('\r\n\x1b[31m● Disconnected\x1b[0m');
+    };
+
+    // Keyboard input → CF_DATA
+    term.onData((data) => {
+      client.sendData(data);
+      term.write(data); // local echo
+    });
+
+    // Buttons
+    document.getElementById('btn-connect').onclick = () => {
+      client.connect(null);
+    };
+
+    document.getElementById('btn-resume').onclick = () => {
+      const saved = localStorage.getItem('clawterm_session_id');
+      if (saved) {
+        term.writeln(`\r\n\x1b[33mResuming session ${saved}...\x1b[0m`);
+        client.connect(parseInt(saved));
+      } else {
+        term.writeln('\r\n\x1b[31mNo saved session to resume\x1b[0m');
+      }
+    };
+
+    document.getElementById('btn-disconnect').onclick = () => {
+      client.disconnect();
+    };
+
+    document.getElementById('btn-ping').onclick = () => {
+      client.sendPing();
+      term.writeln('\r\n\x1b[90m→ CF_PING sent\x1b[0m');
+    };
+
+    // Splash screen
+    term.writeln('\x1b[36m');
+    term.writeln('  ██████╗██╗      █████╗ ██╗    ██╗████████╗███████╗██████╗ ███╗   ███╗');
+    term.writeln(' ██╔════╝██║     ██╔══██╗██║    ██║╚══██╔══╝██╔════╝██╔══██╗████╗ ████║');
+    term.writeln(' ██║     ██║     ███████║██║ █╗ ██║   ██║   █████╗  ██████╔╝██╔████╔██║');
+    term.writeln(' ██║     ██║     ██╔══██║██║███╗██║   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║');
+    term.writeln(' ╚██████╗███████╗██║  ██║╚███╔███╔╝   ██║   ███████╗██║  ██║██║ ╚═╝ ██║');
+    term.writeln('  ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝');
+    term.writeln('\x1b[0m');
+    term.writeln('\x1b[90mSession-oriented binary protocol for persistent AI agent terminals\x1b[0m');
+    term.writeln('\x1b[90mInspired by X.25 virtual circuits · Port 7220 (nod to VT220)\x1b[0m\r\n');
+    term.writeln('Press \x1b[32mConnect\x1b[0m to establish a ClawTerm session with clawd on lobster.');
+    term.writeln('Press \x1b[33mResume\x1b[0m to reconnect to a previous session.\r\n');
+  </script>
+</body>
+</html>
