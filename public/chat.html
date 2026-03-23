@@ -3,501 +3,504 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Baby Claw Chat</title>
+  <title>ClawTerm</title>
+  <script src="/lib/xterm.js"></script><!-- used only for VTAM rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0a0a; color: #e8e8e8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
-    body {
-      background: #0d0d0d;
-      color: #e8e8e8;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* ── VTAM LOGON SCREEN ── */
+    #vtam-screen {
       height: 100vh;
       display: flex;
       flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
     }
-
-    /* ── Header ── */
-    #header {
+    #vtam-box {
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 48px 56px;
+      min-width: 420px;
+      background: #0d0d0d;
+    }
+    #vtam-logo {
+      font-size: 11px;
+      color: #00b4d8;
+      line-height: 1.3;
+      margin-bottom: 32px;
+      white-space: pre;
+      letter-spacing: 0;
+    }
+    #vtam-meta {
+      font-size: 10px;
+      color: #2a2a2a;
+      margin-bottom: 28px;
+      line-height: 1.8;
+    }
+    #vtam-meta span { color: #3a7a3a; }
+    #vtam-label {
+      font-size: 10px;
+      color: #444;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    #vtam-input-row {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 12px 20px;
-      background: #111;
-      border-bottom: 1px solid #1e1e1e;
-      flex-shrink: 0;
+      margin-bottom: 24px;
     }
-    #header-logo { font-size: 20px; }
-    #header-title { font-size: 14px; font-weight: 700; color: #fff; }
-    #header-sub { font-size: 11px; color: #444; margin-left: auto; }
-    #status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #333; transition: all 0.3s;
-      flex-shrink: 0;
+    #vtam-prompt { color: #00ff41; font-size: 13px; }
+    #vtam-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #1e4a1e;
+      color: #00ff41;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      outline: none;
+      width: 140px;
+      padding: 4px 0;
     }
-    #status-dot.connecting { background: #ffd740; box-shadow: 0 0 6px #ffd740; }
-    #status-dot.live { background: #00e676; box-shadow: 0 0 6px #00e676; }
-    #status-dot.dead { background: #ff4444; }
-    #status-label { font-size: 11px; color: #555; }
+    #vtam-input::placeholder { color: #1a3a1a; letter-spacing: 2px; }
+    #vtam-connect-btn {
+      background: #00ff41;
+      color: #000;
+      border: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 7px 18px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #vtam-connect-btn:hover { background: #00e676; }
+    #vtam-status {
+      font-size: 10px;
+      color: #2a4a2a;
+      min-height: 16px;
+      letter-spacing: 0.05em;
+    }
+    #vtam-status.connecting { color: #ffd740; }
+    #vtam-status.error { color: #ff4444; }
+    #vtam-hint {
+      font-size: 9px;
+      color: #1e1e1e;
+      margin-top: 28px;
+      line-height: 1.8;
+    }
 
-    /* ── Agent selector ── */
-    #agent-bar {
+    /* ── CHAT SCREEN ── */
+    #chat-screen {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #chat-header {
       display: flex;
-      gap: 6px;
-      padding: 8px 16px;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
       background: #0d0d0d;
       border-bottom: 1px solid #1a1a1a;
       flex-shrink: 0;
     }
-    .agent-btn {
-      padding: 4px 12px;
-      border-radius: 20px;
-      border: 1px solid #2a2a2a;
-      background: transparent;
-      color: #555;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
+    #chat-agent-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
     }
-    .agent-btn:hover { border-color: #444; color: #888; }
-    .agent-btn.active { border-color: #00e676; color: #00e676; background: rgba(0,230,118,0.06); }
-    .agent-btn.offline { opacity: 0.3; cursor: default; }
+    #chat-status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #00e676; box-shadow: 0 0 5px #00e676;
+    }
+    #chat-disconnect {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid #1e1e1e;
+      color: #333;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+    }
+    #chat-disconnect:hover { border-color: #333; color: #666; }
 
-    /* ── Messages ── */
-    #messages {
+    #chat-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 20px 0;
-      scroll-behavior: smooth;
+      padding: 16px 0;
     }
-    #messages::-webkit-scrollbar { width: 4px; }
-    #messages::-webkit-scrollbar-track { background: transparent; }
-    #messages::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+    #chat-messages::-webkit-scrollbar { width: 3px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: #1a1a1a; }
 
     .msg {
       display: flex;
       gap: 12px;
-      padding: 6px 20px;
-      max-width: 900px;
+      padding: 5px 20px;
+      max-width: 860px;
       margin: 0 auto;
       width: 100%;
     }
-    .msg:hover { background: rgba(255,255,255,0.01); }
-
     .msg-avatar {
-      width: 28px; height: 28px; border-radius: 6px;
+      width: 26px; height: 26px; border-radius: 5px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 14px; flex-shrink: 0; margin-top: 2px;
+      font-size: 13px; flex-shrink: 0; margin-top: 2px;
+      background: #111;
     }
-    .msg.user .msg-avatar { background: #1a2a1a; }
-    .msg.agent .msg-avatar { background: #0a1a2a; }
-
     .msg-body { flex: 1; min-width: 0; }
     .msg-name {
-      font-size: 11px; font-weight: 700;
-      margin-bottom: 4px; color: #555;
+      font-size: 10px; font-weight: 700;
+      margin-bottom: 3px; letter-spacing: 0.05em;
+      font-family: 'JetBrains Mono', monospace;
     }
-    .msg.user .msg-name { color: #4a7a4a; }
-    .msg.agent .msg-name { color: #2a5a8a; }
+    .msg.user .msg-name { color: #2a5a2a; }
+    .msg.agent .msg-name { color: #1a4a6a; }
+    .msg-content { font-size: 14px; line-height: 1.7; color: #d0d0d0; word-break: break-word; }
+    .msg.user .msg-content { color: #b8d8b8; }
 
-    .msg-content {
-      font-size: 14px;
-      line-height: 1.65;
-      color: #d8d8d8;
-      word-break: break-word;
-    }
-    .msg.user .msg-content { color: #c8e6c8; }
-
-    /* Markdown styles */
-    .msg-content p { margin-bottom: 8px; }
+    /* markdown */
+    .msg-content p { margin-bottom: 6px; }
     .msg-content p:last-child { margin-bottom: 0; }
-    .msg-content strong { color: #fff; font-weight: 600; }
-    .msg-content em { color: #aaa; }
-    .msg-content code {
-      background: #1a1a1a; border: 1px solid #2a2a2a;
-      padding: 1px 5px; border-radius: 3px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 12px; color: #7ec8e3;
-    }
-    .msg-content pre {
-      background: #111; border: 1px solid #222;
-      border-radius: 6px; padding: 12px 14px;
-      overflow-x: auto; margin: 8px 0;
-    }
-    .msg-content pre code {
-      background: none; border: none; padding: 0;
-      font-size: 12px; line-height: 1.6; color: #c8e6c8;
-    }
-    .msg-content ul, .msg-content ol {
-      padding-left: 20px; margin: 6px 0;
-    }
-    .msg-content li { margin-bottom: 3px; }
-    .msg-content h1,.msg-content h2,.msg-content h3 {
-      color: #fff; margin: 10px 0 4px; font-weight: 700;
-    }
-    .msg-content h1 { font-size: 18px; }
-    .msg-content h2 { font-size: 16px; }
-    .msg-content h3 { font-size: 14px; }
-    .msg-content blockquote {
-      border-left: 3px solid #2a2a2a; padding-left: 12px;
-      color: #888; margin: 6px 0;
-    }
+    .msg-content strong { color: #fff; }
+    .msg-content code { background: #141414; border: 1px solid #222; padding: 1px 5px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #7ec8e3; }
+    .msg-content pre { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 6px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+    .msg-content pre code { background: none; border: none; padding: 0; color: #b8d8b8; font-size: 12px; line-height: 1.6; }
+    .msg-content ul, .msg-content ol { padding-left: 18px; margin: 4px 0; }
+    .msg-content li { margin-bottom: 2px; }
+    .msg-content h1,.msg-content h2,.msg-content h3 { color: #fff; margin: 8px 0 3px; font-weight: 700; }
+    .msg-content h1 { font-size: 17px; } .msg-content h2 { font-size: 15px; } .msg-content h3 { font-size: 13px; }
+    .msg-content blockquote { border-left: 2px solid #1e1e1e; padding-left: 10px; color: #666; margin: 4px 0; }
     .msg-content a { color: #7ec8e3; text-decoration: none; }
-    .msg-content a:hover { text-decoration: underline; }
-    .msg-content hr { border: none; border-top: 1px solid #1e1e1e; margin: 10px 0; }
+    .msg-content hr { border: none; border-top: 1px solid #1a1a1a; margin: 8px 0; }
 
-    /* Streaming cursor */
-    .cursor-blink::after {
-      content: '▋';
-      animation: blink 0.8s step-end infinite;
-      color: #00e676;
-      font-size: 12px;
-    }
+    .cursor-blink::after { content: '▋'; animation: blink 0.8s step-end infinite; color: #00e676; font-size: 11px; }
     @keyframes blink { 50% { opacity: 0; } }
 
-    /* Thinking indicator */
-    .thinking {
-      display: flex; gap: 4px; align-items: center;
-      padding: 4px 0;
-    }
-    .thinking span {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #333; animation: think 1.2s infinite;
-    }
+    .thinking { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .thinking span { width: 5px; height: 5px; border-radius: 50%; background: #1a1a1a; animation: think 1.2s infinite; }
     .thinking span:nth-child(2) { animation-delay: 0.2s; }
     .thinking span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes think { 0%,60%,100%{background:#2a2a2a} 30%{background:#00e676} }
+    @keyframes think { 0%,60%,100%{background:#1e1e1e} 30%{background:#00e676} }
 
-    /* ── Input area ── */
-    #input-area {
-      padding: 12px 20px 20px;
-      background: #0d0d0d;
-      border-top: 1px solid #1a1a1a;
+    #chat-input-area {
+      padding: 10px 20px 16px;
+      border-top: 1px solid #141414;
       flex-shrink: 0;
     }
-    #input-wrap {
+    #chat-input-wrap {
       display: flex;
       gap: 8px;
-      max-width: 900px;
+      max-width: 860px;
       margin: 0 auto;
-      background: #111;
-      border: 1px solid #252525;
-      border-radius: 10px;
-      padding: 4px 4px 4px 14px;
-      transition: border-color 0.2s;
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 3px 3px 3px 12px;
     }
-    #input-wrap:focus-within { border-color: #2a2a2a; }
-
-    #input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      font-size: 14px;
-      color: #e8e8e8;
-      font-family: inherit;
-      padding: 8px 0;
-      resize: none;
-      min-height: 38px;
-      max-height: 120px;
-      line-height: 1.5;
+    #chat-input-wrap:focus-within { border-color: #252525; }
+    #chat-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-size: 14px; color: #e8e8e8; font-family: inherit;
+      padding: 8px 0; resize: none; min-height: 36px; max-height: 110px; line-height: 1.5;
     }
-    #input::placeholder { color: #333; }
-
-    #send-btn {
-      width: 36px; height: 36px;
-      border-radius: 7px;
-      background: #00e676;
-      border: none;
-      cursor: pointer;
+    #chat-input::placeholder { color: #252525; }
+    #chat-send {
+      width: 34px; height: 34px; border-radius: 6px;
+      background: #00e676; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-      align-self: flex-end;
-      margin-bottom: 1px;
-      transition: background 0.15s, opacity 0.15s;
+      flex-shrink: 0; align-self: flex-end; margin-bottom: 1px;
+      transition: background 0.15s;
     }
-    #send-btn:hover { background: #00c853; }
-    #send-btn:disabled { background: #1a1a1a; cursor: default; opacity: 0.5; }
-    #send-btn svg { width: 16px; height: 16px; fill: #000; }
-
-    #footer-hint {
-      text-align: center;
-      font-size: 10px;
-      color: #2a2a2a;
-      margin-top: 8px;
-    }
+    #chat-send:hover { background: #00c853; }
+    #chat-send:disabled { background: #141414; cursor: default; opacity: 0.4; }
+    #chat-send svg { width: 15px; height: 15px; fill: #000; }
   </style>
 </head>
 <body>
 
-<div id="header">
-  <div id="header-logo">🦞</div>
-  <div>
-    <div id="header-title">Baby Claw</div>
+<!-- ── VTAM LOGON ── -->
+<div id="vtam-screen">
+  <div id="vtam-box">
+    <pre id="vtam-logo"> ██████╗██╗      █████╗ ██╗    ██╗
+██╔════╝██║     ██╔══██╗██║    ██║
+██║     ██║     ███████║██║ █╗ ██║
+██║     ██║     ██╔══██║██║███╗██║
+╚██████╗███████╗██║  ██║╚███╔███╔╝
+ ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝</pre>
+    <div id="vtam-meta">
+      NETWORK  :  <span>CLAWNET-1</span>
+      NODE     :  <span>LOBSTER-1</span>
+      PROTOCOL :  <span>CLAWTERM V0.2</span>
+    </div>
+    <div id="vtam-label">APPLID</div>
+    <div id="vtam-input-row">
+      <span id="vtam-prompt">▶</span>
+      <input id="vtam-input" type="text" placeholder="BABY1" maxlength="8" autocomplete="off" spellcheck="false">
+      <button id="vtam-connect-btn">LOGON</button>
+    </div>
+    <div id="vtam-status"></div>
+    <div id="vtam-hint">ENTER = LOGON  ·  ESC = CLEAR</div>
   </div>
-  <div id="status-dot" class="connecting"></div>
-  <div id="status-label">connecting...</div>
-  <div id="header-sub">DeepTxAI · ClawForge</div>
 </div>
 
-<div id="agent-bar">
-  <button class="agent-btn active" data-agent="BABY1" data-port="30801">BABY1</button>
-  <button class="agent-btn" data-agent="BABY3" data-port="30805">BABY3</button>
-  <button class="agent-btn" data-agent="BABY4" data-port="30803">BABY4</button>
-  <button class="agent-btn" data-agent="BABY5" data-port="30804">BABY5</button>
-  <button class="agent-btn offline" data-agent="BABY2" data-port="30802">BABY2</button>
-</div>
-
-<div id="messages"></div>
-
-<div id="input-area">
-  <div id="input-wrap">
-    <textarea id="input" rows="1" placeholder="Message Baby Claw..." disabled></textarea>
-    <button id="send-btn" disabled>
-      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-    </button>
+<!-- ── CHAT ── -->
+<div id="chat-screen">
+  <div id="chat-header">
+    <div id="chat-status-dot"></div>
+    <div id="chat-agent-name">BABY1</div>
+    <button id="chat-disconnect">⬅ LOGOFF</button>
   </div>
-  <div id="footer-hint">Enter to send · Shift+Enter for newline</div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-area">
+    <div id="chat-input-wrap">
+      <textarea id="chat-input" rows="1" placeholder="Type a message..." disabled></textarea>
+      <button id="chat-send" disabled>
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>
-  const GATEWAY_TOKEN = 'claw2026';
-  const LOBSTER_HOST = '100.114.163.66';
+  marked.setOptions({ breaks: true, gfm: true });
+
+  const BRIDGE_URL = (applid) => 'wss://' + window.location.host + '/clawterm-ws?applid=' + encodeURIComponent(applid.trim());
 
   let ws = null;
-  let reqId = 1;
-  let gwReady = false;
-  let currentAgent = 'BABY1';
-  let currentPort = 30801;
+  let currentApplid = '';
   let streamingEl = null;
   let streamingText = '';
 
-  // ── Marked config ──────────────────────────────────────────────────────
-  marked.setOptions({ breaks: true, gfm: true });
+  // ── VTAM elements ──
+  const vtamScreen = document.getElementById('vtam-screen');
+  const vtamInput  = document.getElementById('vtam-input');
+  const vtamBtn    = document.getElementById('vtam-connect-btn');
+  const vtamStatus = document.getElementById('vtam-status');
 
-  // ── DOM refs ───────────────────────────────────────────────────────────
-  const messages  = document.getElementById('messages');
-  const input     = document.getElementById('input');
-  const sendBtn   = document.getElementById('send-btn');
-  const statusDot = document.getElementById('status-dot');
-  const statusLbl = document.getElementById('status-label');
+  // ── Chat elements ──
+  const chatScreen   = document.getElementById('chat-screen');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatInput    = document.getElementById('chat-input');
+  const chatSend     = document.getElementById('chat-send');
+  const chatName     = document.getElementById('chat-agent-name');
+  const chatDisconn  = document.getElementById('chat-disconnect');
 
-  function setStatus(state, label) {
-    statusDot.className = state;
-    statusLbl.textContent = label;
-    statusLbl.style.color = state === 'live' ? '#00e676' : state === 'connecting' ? '#ffd740' : '#555';
+  function setVtamStatus(msg, cls) {
+    vtamStatus.textContent = msg;
+    vtamStatus.className = cls || '';
   }
 
-  // ── Message rendering ──────────────────────────────────────────────────
-  function addMessage(role, text, streaming) {
-    const div = document.createElement('div');
-    div.className = 'msg ' + role;
+  // ── Connect via bridge ──
+  function connect(applid) {
+    applid = applid.trim().toUpperCase();
+    if (!applid) { setVtamStatus('enter an APPLID', 'error'); return; }
 
-    const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
-    avatar.textContent = role === 'user' ? '👤' : '🦞';
-
-    const body = document.createElement('div');
-    body.className = 'msg-body';
-
-    const name = document.createElement('div');
-    name.className = 'msg-name';
-    name.textContent = role === 'user' ? 'You' : currentAgent;
-
-    const content = document.createElement('div');
-    content.className = 'msg-content' + (streaming ? ' cursor-blink' : '');
-    if (text) content.innerHTML = marked.parse(text);
-
-    body.appendChild(name);
-    body.appendChild(content);
-    div.appendChild(avatar);
-    div.appendChild(body);
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
-    return content;
-  }
-
-  function addThinking() {
-    const div = document.createElement('div');
-    div.className = 'msg agent';
-    div.id = 'thinking-msg';
-
-    const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
-    avatar.textContent = '🦞';
-
-    const body = document.createElement('div');
-    body.className = 'msg-body';
-
-    const name = document.createElement('div');
-    name.className = 'msg-name';
-    name.textContent = currentAgent;
-
-    const thinking = document.createElement('div');
-    thinking.className = 'thinking';
-    thinking.innerHTML = '<span></span><span></span><span></span>';
-
-    body.appendChild(name);
-    body.appendChild(thinking);
-    div.appendChild(avatar);
-    div.appendChild(body);
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
-    return div;
-  }
-
-  function removeThinking() {
-    const el = document.getElementById('thinking-msg');
-    if (el) el.remove();
-  }
-
-  // ── WebSocket gateway connection ───────────────────────────────────────
-  function connect(agent, port) {
-    currentAgent = agent;
-    currentPort = port;
-
-    // Update agent button UI
-    document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('[data-agent="' + agent + '"]').classList.add('active');
-
-    // Update header
-    document.getElementById('header-title').textContent = agent;
+    currentApplid = applid;
+    setVtamStatus('connecting to ' + applid + '...', 'connecting');
+    vtamBtn.disabled = true;
 
     if (ws) { try { ws.close(); } catch(e) {} }
-    gwReady = false;
-    input.disabled = true;
-    sendBtn.disabled = true;
-    setStatus('connecting', 'connecting...');
 
-    ws = new WebSocket('ws://' + LOBSTER_HOST + ':' + port + '/');
-    reqId = 1;
+    ws = new WebSocket(BRIDGE_URL(applid));
 
-    ws.onopen = () => setStatus('connecting', 'authenticating...');
+    ws.onopen = () => setVtamStatus('authenticating...', 'connecting');
 
     ws.onmessage = (evt) => {
       let msg;
-      try { msg = JSON.parse(evt.data); } catch(e) { return; }
+      try { msg = JSON.parse(evt.data.toString ? evt.data.toString() : evt.data); } catch(e) { return; }
 
-      // Challenge-response auth
-      if (msg.type === 'event' && msg.event === 'connect.challenge') {
-        ws.send(JSON.stringify({
-          type: 'req', id: String(reqId++), method: 'connect',
-          params: {
-            minProtocol: 3, maxProtocol: 3,
-            client: { id: 'gateway-client', version: '1.0.0', platform: 'linux', mode: 'backend' },
-            caps: [], role: 'operator', scopes: ['operator.admin'],
-            auth: { token: GATEWAY_TOKEN }
-          }
-        }));
+      if (msg._ctrl === 'ip_up') {
+        setVtamStatus('authenticated', 'connecting');
         return;
       }
 
-      // Authenticated
-      if (msg.type === 'res' && msg.payload && msg.payload.type === 'hello-ok') {
-        gwReady = true;
-        input.disabled = false;
-        sendBtn.disabled = false;
-        input.focus();
-        setStatus('live', agent + ' live');
+      if (msg._ctrl === 'session_open') {
+        // Switch to chat screen
+        vtamScreen.style.display = 'none';
+        chatScreen.style.display = 'flex';
+        chatName.textContent = applid;
+        chatMessages.innerHTML = '';
+        streamingEl = null;
+        streamingText = '';
+        chatInput.disabled = false;
+        chatSend.disabled = false;
+        chatInput.focus();
         return;
       }
 
-      // Agent streaming
-      if (msg.type === 'event' && msg.event === 'agent') {
-        const delta = msg.payload && msg.payload.data && msg.payload.data.delta;
-        if (delta) {
-          if (!streamingEl) {
-            removeThinking();
-            streamingText = '';
-            streamingEl = addMessage('agent', '', true);
-          }
-          streamingText += delta;
-          streamingEl.innerHTML = marked.parse(streamingText);
-          messages.scrollTop = messages.scrollHeight;
+      if (msg._ctrl === 'data' && msg.text) {
+        // Strip ANSI for clean rendering
+        const clean = msg.text.replace(/\x1b\[[0-9;]*m/g, '')
+                               .replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!clean.trim()) return;
+
+        // Check if it's the welcome banner — skip it
+        if (clean.includes('CF_ACCEPT') || clean.includes('All layers green') || clean.includes('Type and press')) return;
+
+        if (!streamingEl) {
+          removeThinking();
+          streamingText = '';
+          streamingEl = addMsg('agent', '', true);
         }
-        // End of turn
-        if (msg.payload && msg.payload.stream === 'lifecycle' && msg.payload.data && msg.payload.data.phase === 'end') {
+        streamingText += clean;
+        streamingEl.innerHTML = marked.parse(streamingText);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Detect end of response ($ prompt)
+        if (clean.endsWith('$ ') || clean.endsWith('\n$ ')) {
+          // Remove trailing $ prompt from display
+          streamingText = streamingText.replace(/\n?\$ ?\s*$/, '');
           if (streamingEl) {
             streamingEl.classList.remove('cursor-blink');
             streamingEl.innerHTML = marked.parse(streamingText);
             streamingEl = null;
             streamingText = '';
           }
-          sendBtn.disabled = false;
-          input.disabled = false;
-          input.focus();
+          chatSend.disabled = false;
+          chatInput.disabled = false;
+          chatInput.focus();
         }
+        return;
+      }
+
+      if (msg._ctrl === 'ip_down') {
+        chatInput.disabled = true;
+        chatSend.disabled = true;
+        showVtam('Connection lost: ' + (msg.reason || 'disconnected'));
         return;
       }
     };
 
     ws.onclose = () => {
-      gwReady = false;
-      input.disabled = true;
-      sendBtn.disabled = true;
-      setStatus('dead', 'disconnected');
-      // Auto-reconnect after 3s
-      setTimeout(() => connect(currentAgent, currentPort), 3000);
+      vtamBtn.disabled = false;
+      if (chatScreen.style.display === 'flex') {
+        chatInput.disabled = true;
+        chatSend.disabled = true;
+        showVtam('Session ended');
+      }
     };
 
-    ws.onerror = () => setStatus('dead', 'error');
+    ws.onerror = () => {
+      vtamBtn.disabled = false;
+      setVtamStatus('connection failed', 'error');
+    };
   }
 
-  // ── Send message ───────────────────────────────────────────────────────
+  function showVtam(msg) {
+    chatScreen.style.display = 'none';
+    vtamScreen.style.display = 'flex';
+    vtamBtn.disabled = false;
+    if (msg) setVtamStatus(msg, 'error');
+    vtamInput.focus();
+    vtamInput.select();
+  }
+
+  // ── Chat helpers ──
+  function addMsg(role, text, streaming) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    const av = document.createElement('div');
+    av.className = 'msg-avatar';
+    av.textContent = role === 'user' ? '👤' : '🦞';
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+    const name = document.createElement('div');
+    name.className = 'msg-name';
+    name.textContent = role === 'user' ? 'YOU' : currentApplid;
+    const content = document.createElement('div');
+    content.className = 'msg-content' + (streaming ? ' cursor-blink' : '');
+    if (text) content.innerHTML = marked.parse(text);
+    body.appendChild(name);
+    body.appendChild(content);
+    div.appendChild(av);
+    div.appendChild(body);
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return content;
+  }
+
+  function addThinking() {
+    const div = document.createElement('div');
+    div.className = 'msg agent'; div.id = 'thinking';
+    const av = document.createElement('div');
+    av.className = 'msg-avatar'; av.textContent = '🦞';
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+    const name = document.createElement('div');
+    name.className = 'msg-name'; name.textContent = currentApplid;
+    const t = document.createElement('div');
+    t.className = 'thinking';
+    t.innerHTML = '<span></span><span></span><span></span>';
+    body.appendChild(name); body.appendChild(t);
+    div.appendChild(av); div.appendChild(body);
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function removeThinking() {
+    const el = document.getElementById('thinking');
+    if (el) el.remove();
+  }
+
+  // ── Send ──
   function send() {
-    const text = input.value.trim();
-    if (!text || !gwReady) return;
-
-    input.value = '';
-    input.style.height = 'auto';
-    sendBtn.disabled = true;
-    input.disabled = true;
-
-    addMessage('user', text);
+    const text = chatInput.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    chatSend.disabled = true;
+    chatInput.disabled = true;
+    addMsg('user', text);
     addThinking();
-
-    ws.send(JSON.stringify({
-      type: 'req',
-      id: String(reqId++),
-      method: 'chat.send',
-      params: {
-        sessionKey: 'main',
-        message: text,
-        idempotencyKey: crypto.randomUUID()
-      }
-    }));
+    // Send as plain text — server.js buffers on newline, but we send complete message
+    // Encode as CNA CF_DATA frame
+    const payload = new TextEncoder().encode(text + '\r');
+    const frame = new Uint8Array(15 + payload.length);
+    frame[0] = 0x7E;                     // flag
+    // session_id 0, seq 1, type CF_DATA=5, flags 0
+    frame[9] = 0x05;                     // CF_DATA
+    new DataView(frame.buffer).setUint16(11, payload.length, false);
+    frame.set(payload, 13);
+    ws.send(frame.buffer);
   }
 
-  // ── Input handlers ─────────────────────────────────────────────────────
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
+  // ── Input handlers ──
+  vtamInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); connect(vtamInput.value || 'BABY1'); }
+    if (e.key === 'Escape') { vtamInput.value = ''; setVtamStatus(''); }
+  });
+  vtamBtn.addEventListener('click', () => connect(vtamInput.value || 'BABY1'));
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 110) + 'px';
+  });
+  chatSend.addEventListener('click', send);
+  chatDisconn.addEventListener('click', () => {
+    if (ws) ws.close();
+    showVtam('');
   });
 
-  input.addEventListener('input', () => {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-  });
-
-  sendBtn.addEventListener('click', send);
-
-  // ── Agent switcher ─────────────────────────────────────────────────────
-  document.querySelectorAll('.agent-btn:not(.offline)').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const agent = btn.dataset.agent;
-      const port  = parseInt(btn.dataset.port);
-      streamingEl = null;
-      streamingText = '';
-      messages.innerHTML = '';
-      connect(agent, port);
-    });
-  });
-
-  // ── Boot ───────────────────────────────────────────────────────────────
-  connect('BABY1', 30801);
+  // ── Boot ──
+  vtamInput.focus();
 </script>
 </body>
 </html>
