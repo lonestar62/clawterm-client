@@ -325,8 +325,6 @@
       setDiag('ip', 'red', 'waiting...');
       setDiag('vt', 'red', 'no session');
 
-      cl.connect(resumeId, applidStr);
-
       cl.ws.onopen = () => {
         setDiag('ws', 'green', 'bridge ok');
         setDiag('ip', 'yellow', 'authenticating...');
@@ -358,6 +356,7 @@
         document.getElementById('session-info').textContent = applidStr.trim() + ' · ' + hex;
         document.getElementById('footer-session').textContent = 'session: ' + hex;
         localStorage.setItem('clawterm_session_id', sessionId);
+        isConnecting = false;
         term.writeln('\x1b[32m[SESSION]\x1b[0m \u2713 ' + hex + ' — type to send\r\n');
         term.write('\x1b[32m$\x1b[0m ');
       };
@@ -369,8 +368,11 @@
         setDiag('ip', 'red', 'closed');
         setDiag('vt', 'red', 'suspended');
         document.getElementById('session-info').textContent = 'suspended';
+        isConnecting = false;
         term.writeln('\r\n\x1b[31m[BRIDGE]\x1b[0m Disconnected — F5 to resume\r\n');
       };
+
+      cl.connect(resumeId, applidStr);
     }
 
     term.onData((data) => {
