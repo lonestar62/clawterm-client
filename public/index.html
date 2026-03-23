@@ -519,6 +519,54 @@
 
     // ── Boot: show splash ─────────────────────────────────────────────────
     showSplash();
+  
+    // ── Diagnostics overlay ───────────────────────────────────────────────
+    function dovSet(id, state, text) {
+      const dot = document.getElementById('dov-' + id + '-dot');
+      const txt = document.getElementById('dov-' + id + '-txt');
+      if (!dot || !txt) return;
+      const colors = { green: '#00e676', yellow: '#ffd740', red: '#ff4444', grey: '#555' };
+      dot.style.background = colors[state] || '#555';
+      dot.style.boxShadow = state === 'green' ? '0 0 5px #00e676' : state === 'yellow' ? '0 0 5px #ffd740' : 'none';
+      txt.style.color = colors[state] || '#555';
+      txt.textContent = text;
+    }
+
+    // Check internet connectivity
+    fetch('https://dns.google/resolve?name=google.com&type=A', { mode: 'no-cors' })
+      .then(() => dovSet('internet', 'green', 'INTERNET  ok'))
+      .catch(() => dovSet('internet', 'red',   'INTERNET  OFFLINE'));
+
+    // Check xterm loaded
+    if (typeof Terminal !== 'undefined') {
+      dovSet('xterm', 'green', 'XTERM     loaded v5.3');
+    } else {
+      dovSet('xterm', 'red', 'XTERM     FAILED');
+    }
+
+    // Hook into existing diag state to drive overlay
+    const _origSetDiag = setDiag;
+    window._dovOverrideSetDiag = function(id, state, tooltip) {
+      _origSetDiag(id, state, tooltip);
+      const applid = (document.getElementById('applid-input')?.value || '').trim().toUpperCase();
+      if (id === 'ws') {
+        if (state === 'green') dovSet('ws', 'green', 'BRIDGE    fleet-vm ok');
+        else if (state === 'yellow') dovSet('ws', 'yellow', 'BRIDGE    connecting...');
+        else dovSet('ws', 'grey', 'BRIDGE    waiting');
+      }
+      if (id === 'ip') {
+        if (state === 'green') dovSet('agent', 'green', 'AGENT     ' + (applid||'') + ' live');
+        else if (state === 'yellow') dovSet('agent', 'yellow', 'AGENT     ' + (applid||'') + ' authing...');
+        else dovSet('agent', 'grey', 'AGENT     no session');
+      }
+      if (id === 'vt') {
+        if (state === 'green') dovSet('agent', 'green', 'AGENT     ' + (applid||'') + ' LIVE');
+        else if (state === 'red') dovSet('agent', 'red', 'AGENT     disconnected');
+      }
+    };
+    // Monkey-patch - need to override after function is defined
+    // Instead hook through _diagState directly - already patched above
+
   </script>
 </body>
 </html>
