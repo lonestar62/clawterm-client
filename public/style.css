@@ -3,67 +3,124 @@
 body {
   background: #0a0a0a;
   color: #00ff41;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
 }
 
+/* ── Top bar ─────────────────────────────────────────────── */
 #header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  background: #111;
-  border-bottom: 1px solid #00ff4133;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #0f0f0f;
+  border-bottom: 1px solid #1a1a1a;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 #logo {
   font-weight: 700;
   color: #00ff41;
-  font-size: 14px;
-  letter-spacing: 2px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  margin-right: 6px;
+  white-space: nowrap;
 }
 
+/* ── Shared button style ─────────────────────────────────── */
+.hdr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid #2a2a2a;
+  background: #161616;
+  color: #888;
+  transition: all 0.15s;
+  user-select: none;
+}
+.hdr-btn:hover { background: #1f1f1f; color: #bbb; }
+
+/* ── Diagnostic buttons ──────────────────────────────────── */
+.diag-btn            { cursor: default; }
+.diag-btn:hover      { background: #161616; }
+
+.diag-btn.red        { border-color: #ff444433; color: #ff6666; background: #1a0808; }
+.diag-btn.yellow     { border-color: #ffaa0033; color: #ffcc44; background: #1a1400; }
+.diag-btn.green      { border-color: #00ff4133; color: #00ff41; background: #001a0a; }
+
+.diag-dot { font-size: 9px; }
+
+/* ── Action buttons ──────────────────────────────────────── */
+.act-btn             { color: #00ff41; border-color: #00ff4133; }
+.act-btn:hover       { background: #00ff4115; color: #44ff77; border-color: #00ff4166; }
+
+.act-btn.amber       { color: #ffaa44; border-color: #ffaa4433; }
+.act-btn.amber:hover { background: #ffaa4415; border-color: #ffaa4466; }
+
+.act-btn.red-btn     { color: #ff6666; border-color: #ff444433; }
+.act-btn.red-btn:hover { background: #ff444415; }
+
+.act-btn.muted       { color: #555; border-color: #2a2a2a; }
+.act-btn.muted:hover { color: #888; }
+
+/* ── F-key buttons ───────────────────────────────────────── */
+.fkey-btn {
+  color: #4a9eff;
+  border-color: #4a9eff33;
+  font-size: 10px;
+  padding: 4px 8px;
+}
+.fkey-btn:hover { background: #4a9eff15; border-color: #4a9eff66; }
+.fkey-btn .fkey-label { color: #2a6aaa; font-size: 9px; }
+
+/* ── Divider ─────────────────────────────────────────────── */
+.hdr-sep {
+  color: #2a2a2a;
+  font-size: 16px;
+  padding: 0 2px;
+  user-select: none;
+}
+
+/* ── Session info ────────────────────────────────────────── */
 #session-info {
-  font-size: 12px;
-  color: #666;
+  font-size: 11px;
+  color: #444;
+  margin-left: 4px;
+  white-space: nowrap;
   flex: 1;
 }
 
-.dot-green { color: #00ff41; }
-.dot-red   { color: #ff4444; }
-
-button {
-  background: #1a1a1a;
-  border: 1px solid #00ff4133;
-  color: #00ff41;
-  padding: 4px 12px;
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-  cursor: pointer;
-  border-radius: 3px;
-}
-button:hover { background: #00ff4122; }
-
+/* ── Terminal ────────────────────────────────────────────── */
 #terminal-container {
   flex: 1;
-  padding: 8px;
+  padding: 6px 8px;
   overflow: hidden;
 }
 
+/* ── Footer ──────────────────────────────────────────────── */
 #footer {
   display: flex;
-  gap: 24px;
-  padding: 4px 16px;
-  background: #111;
-  border-top: 1px solid #00ff4133;
-  font-size: 11px;
-  color: #444;
+  gap: 20px;
+  padding: 3px 12px;
+  background: #0f0f0f;
+  border-top: 1px solid #1a1a1a;
+  font-size: 10px;
+  color: #333;
   flex-shrink: 0;
 }
+#footer-diag { color: #444; }
 
 .xterm { height: 100%; }
 .xterm-viewport { overflow-y: auto !important; }
