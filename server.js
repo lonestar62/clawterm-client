@@ -148,26 +148,42 @@ function handleBabySession(ws, applid, route) {
   });
 
   // Browser input -> baby claw (handles CNA binary frames or plain text)
+  let lineBuffer = '';
   ws.on('message', (data) => {
     // JSON ctrl
     try {
       const obj = JSON.parse(data.toString());
       if (obj._ctrl === 'send' && obj.text) { sendToAgent(obj.text); return; }
     } catch(e) {}
-    // CNA binary frame: 0x7E [session:4] [seq:4] [type:1] [flags:1] [len:2] [payload] [crc:2]
+    // CNA binary frame
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    let text = '';
     if (buf.length >= 15 && buf[0] === 0x7E) {
       const type = buf[9];
       const len  = buf.readUInt16BE(11);
-      if (type === 0x05 && buf.length >= 13 + len) { // CF_DATA
-        const payload = buf.slice(13, 13 + len).toString('utf8').trim();
-        if (payload) { console.log('[clawterm-client] CF_DATA ->', JSON.stringify(payload)); sendToAgent(payload); }
+      if (type === 0x05 && buf.length >= 13 + len) {
+        text = buf.slice(13, 13 + len).toString('utf8');
+      } else {
+        return; // PING, SUSPEND etc - ignore
       }
-      return; // all other CNA frames (PING, SUSPEND etc) ignored
+    } else {
+      text = buf.toString('utf8');
     }
-    // Fallback plain text
-    const text = buf.toString('utf8').trim();
-    if (text) sendToAgent(text);
+    // Buffer until Enter
+    for (const ch of text) {
+      if (ch === '' || ch === '
+') {
+        if (lineBuffer.trim()) {
+          console.log('[clawterm-client] SEND ->', JSON.stringify(lineBuffer));
+          sendToAgent(lineBuffer.trim());
+          lineBuffer = '';
+        }
+      } else if (ch === '' || ch === '') {
+        lineBuffer = lineBuffer.slice(0, -1); // backspace
+      } else if (ch >= ' ' || ch === '	') {
+        lineBuffer += ch;
+      }
+    }
   });
 
   ws.on('close', () => {
