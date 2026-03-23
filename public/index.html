@@ -145,10 +145,7 @@
       if (el) { el.className = 'diag-btn hdr-btn ' + state; if (tooltip) el.title = tooltip; }
     }
 
-    function updateFooter() { /* replaced by status pill */ }' : c.includes('yellow') ? '\u{1F7E1}' : '\u{1F534}';
-      };
-      document.getElementById('footer-diag').textContent =
-        `WS:${s('ws')} IP:${s('ip')} VT:${s('vt')}`;
+    function updateFooter() { /* noop */ } IP:${s('ip')} VT:${s('vt')}`;
     }
 
     // ── xterm.js setup ────────────────────────────────────────────────────
