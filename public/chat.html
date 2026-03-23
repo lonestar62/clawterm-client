@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Baby Claw Chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e8e8e8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: #111;
+      border-bottom: 1px solid #1e1e1e;
+      flex-shrink: 0;
+    }
+    #header-logo { font-size: 20px; }
+    #header-title { font-size: 14px; font-weight: 700; color: #fff; }
+    #header-sub { font-size: 11px; color: #444; margin-left: auto; }
+    #status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #333; transition: all 0.3s;
+      flex-shrink: 0;
+    }
+    #status-dot.connecting { background: #ffd740; box-shadow: 0 0 6px #ffd740; }
+    #status-dot.live { background: #00e676; box-shadow: 0 0 6px #00e676; }
+    #status-dot.dead { background: #ff4444; }
+    #status-label { font-size: 11px; color: #555; }
+
+    /* ── Agent selector ── */
+    #agent-bar {
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #0d0d0d;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .agent-btn {
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid #2a2a2a;
+      background: transparent;
+      color: #555;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .agent-btn:hover { border-color: #444; color: #888; }
+    .agent-btn.active { border-color: #00e676; color: #00e676; background: rgba(0,230,118,0.06); }
+    .agent-btn.offline { opacity: 0.3; cursor: default; }
+
+    /* ── Messages ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 0;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+    .msg {
+      display: flex;
+      gap: 12px;
+      padding: 6px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .msg:hover { background: rgba(255,255,255,0.01); }
+
+    .msg-avatar {
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0; margin-top: 2px;
+    }
+    .msg.user .msg-avatar { background: #1a2a1a; }
+    .msg.agent .msg-avatar { background: #0a1a2a; }
+
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-name {
+      font-size: 11px; font-weight: 700;
+      margin-bottom: 4px; color: #555;
+    }
+    .msg.user .msg-name { color: #4a7a4a; }
+    .msg.agent .msg-name { color: #2a5a8a; }
+
+    .msg-content {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #d8d8d8;
+      word-break: break-word;
+    }
+    .msg.user .msg-content { color: #c8e6c8; }
+
+    /* Markdown styles */
+    .msg-content p { margin-bottom: 8px; }
+    .msg-content p:last-child { margin-bottom: 0; }
+    .msg-content strong { color: #fff; font-weight: 600; }
+    .msg-content em { color: #aaa; }
+    .msg-content code {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      padding: 1px 5px; border-radius: 3px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px; color: #7ec8e3;
+    }
+    .msg-content pre {
+      background: #111; border: 1px solid #222;
+      border-radius: 6px; padding: 12px 14px;
+      overflow-x: auto; margin: 8px 0;
+    }
+    .msg-content pre code {
+      background: none; border: none; padding: 0;
+      font-size: 12px; line-height: 1.6; color: #c8e6c8;
+    }
+    .msg-content ul, .msg-content ol {
+      padding-left: 20px; margin: 6px 0;
+    }
+    .msg-content li { margin-bottom: 3px; }
+    .msg-content h1,.msg-content h2,.msg-content h3 {
+      color: #fff; margin: 10px 0 4px; font-weight: 700;
+    }
+    .msg-content h1 { font-size: 18px; }
+    .msg-content h2 { font-size: 16px; }
+    .msg-content h3 { font-size: 14px; }
+    .msg-content blockquote {
+      border-left: 3px solid #2a2a2a; padding-left: 12px;
+      color: #888; margin: 6px 0;
+    }
+    .msg-content a { color: #7ec8e3; text-decoration: none; }
+    .msg-content a:hover { text-decoration: underline; }
+    .msg-content hr { border: none; border-top: 1px solid #1e1e1e; margin: 10px 0; }
+
+    /* Streaming cursor */
+    .cursor-blink::after {
+      content: '▋';
+      animation: blink 0.8s step-end infinite;
+      color: #00e676;
+      font-size: 12px;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* Thinking indicator */
+    .thinking {
+      display: flex; gap: 4px; align-items: center;
+      padding: 4px 0;
+    }
+    .thinking span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #333; animation: think 1.2s infinite;
+    }
+    .thinking span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes think { 0%,60%,100%{background:#2a2a2a} 30%{background:#00e676} }
+
+    /* ── Input area ── */
+    #input-area {
+      padding: 12px 20px 20px;
+      background: #0d0d0d;
+      border-top: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    #input-wrap {
+      display: flex;
+      gap: 8px;
+      max-width: 900px;
+      margin: 0 auto;
+      background: #111;
+      border: 1px solid #252525;
+      border-radius: 10px;
+      padding: 4px 4px 4px 14px;
+      transition: border-color 0.2s;
+    }
+    #input-wrap:focus-within { border-color: #2a2a2a; }
+
+    #input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      color: #e8e8e8;
+      font-family: inherit;
+      padding: 8px 0;
+      resize: none;
+      min-height: 38px;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+    #input::placeholder { color: #333; }
+
+    #send-btn {
+      width: 36px; height: 36px;
+      border-radius: 7px;
+      background: #00e676;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      align-self: flex-end;
+      margin-bottom: 1px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    #send-btn:hover { background: #00c853; }
+    #send-btn:disabled { background: #1a1a1a; cursor: default; opacity: 0.5; }
+    #send-btn svg { width: 16px; height: 16px; fill: #000; }
+
+    #footer-hint {
+      text-align: center;
+      font-size: 10px;
+      color: #2a2a2a;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-logo">🦞</div>
+  <div>
+    <div id="header-title">Baby Claw</div>
+  </div>
+  <div id="status-dot" class="connecting"></div>
+  <div id="status-label">connecting...</div>
+  <div id="header-sub">DeepTxAI · ClawForge</div>
+</div>
+
+<div id="agent-bar">
+  <button class="agent-btn active" data-agent="BABY1" data-port="30801">BABY1</button>
+  <button class="agent-btn" data-agent="BABY3" data-port="30805">BABY3</button>
+  <button class="agent-btn" data-agent="BABY4" data-port="30803">BABY4</button>
+  <button class="agent-btn" data-agent="BABY5" data-port="30804">BABY5</button>
+  <button class="agent-btn offline" data-agent="BABY2" data-port="30802">BABY2</button>
+</div>
+
+<div id="messages"></div>
+
+<div id="input-area">
+  <div id="input-wrap">
+    <textarea id="input" rows="1" placeholder="Message Baby Claw..." disabled></textarea>
+    <button id="send-btn" disabled>
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+  <div id="footer-hint">Enter to send · Shift+Enter for newline</div>
+</div>
+
+<script>
+  const GATEWAY_TOKEN = 'claw2026';
+  const LOBSTER_HOST = '100.114.163.66';
+
+  let ws = null;
+  let reqId = 1;
+  let gwReady = false;
+  let currentAgent = 'BABY1';
+  let currentPort = 30801;
+  let streamingEl = null;
+  let streamingText = '';
+
+  // ── Marked config ──────────────────────────────────────────────────────
+  marked.setOptions({ breaks: true, gfm: true });
+
+  // ── DOM refs ───────────────────────────────────────────────────────────
+  const messages  = document.getElementById('messages');
+  const input     = document.getElementById('input');
+  const sendBtn   = document.getElementById('send-btn');
+  const statusDot = document.getElementById('status-dot');
+  const statusLbl = document.getElementById('status-label');
+
+  function setStatus(state, label) {
+    statusDot.className = state;
+    statusLbl.textContent = label;
+    statusLbl.style.color = state === 'live' ? '#00e676' : state === 'connecting' ? '#ffd740' : '#555';
+  }
+
+  // ── Message rendering ──────────────────────────────────────────────────
+  function addMessage(role, text, streaming) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = role === 'user' ? '👤' : '🦞';
+
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+
+    const name = document.createElement('div');
+    name.className = 'msg-name';
+    name.textContent = role === 'user' ? 'You' : currentAgent;
+
+    const content = document.createElement('div');
+    content.className = 'msg-content' + (streaming ? ' cursor-blink' : '');
+    if (text) content.innerHTML = marked.parse(text);
+
+    body.appendChild(name);
+    body.appendChild(content);
+    div.appendChild(avatar);
+    div.appendChild(body);
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return content;
+  }
+
+  function addThinking() {
+    const div = document.createElement('div');
+    div.className = 'msg agent';
+    div.id = 'thinking-msg';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = '🦞';
+
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+
+    const name = document.createElement('div');
+    name.className = 'msg-name';
+    name.textContent = currentAgent;
+
+    const thinking = document.createElement('div');
+    thinking.className = 'thinking';
+    thinking.innerHTML = '<span></span><span></span><span></span>';
+
+    body.appendChild(name);
+    body.appendChild(thinking);
+    div.appendChild(avatar);
+    div.appendChild(body);
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  function removeThinking() {
+    const el = document.getElementById('thinking-msg');
+    if (el) el.remove();
+  }
+
+  // ── WebSocket gateway connection ───────────────────────────────────────
+  function connect(agent, port) {
+    currentAgent = agent;
+    currentPort = port;
+
+    // Update agent button UI
+    document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-agent="' + agent + '"]').classList.add('active');
+
+    // Update header
+    document.getElementById('header-title').textContent = agent;
+
+    if (ws) { try { ws.close(); } catch(e) {} }
+    gwReady = false;
+    input.disabled = true;
+    sendBtn.disabled = true;
+    setStatus('connecting', 'connecting...');
+
+    ws = new WebSocket('ws://' + LOBSTER_HOST + ':' + port + '/');
+    reqId = 1;
+
+    ws.onopen = () => setStatus('connecting', 'authenticating...');
+
+    ws.onmessage = (evt) => {
+      let msg;
+      try { msg = JSON.parse(evt.data); } catch(e) { return; }
+
+      // Challenge-response auth
+      if (msg.type === 'event' && msg.event === 'connect.challenge') {
+        ws.send(JSON.stringify({
+          type: 'req', id: String(reqId++), method: 'connect',
+          params: {
+            minProtocol: 3, maxProtocol: 3,
+            client: { id: 'gateway-client', version: '1.0.0', platform: 'linux', mode: 'backend' },
+            caps: [], role: 'operator', scopes: ['operator.admin'],
+            auth: { token: GATEWAY_TOKEN }
+          }
+        }));
+        return;
+      }
+
+      // Authenticated
+      if (msg.type === 'res' && msg.payload && msg.payload.type === 'hello-ok') {
+        gwReady = true;
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+        setStatus('live', agent + ' live');
+        return;
+      }
+
+      // Agent streaming
+      if (msg.type === 'event' && msg.event === 'agent') {
+        const delta = msg.payload && msg.payload.data && msg.payload.data.delta;
+        if (delta) {
+          if (!streamingEl) {
+            removeThinking();
+            streamingText = '';
+            streamingEl = addMessage('agent', '', true);
+          }
+          streamingText += delta;
+          streamingEl.innerHTML = marked.parse(streamingText);
+          messages.scrollTop = messages.scrollHeight;
+        }
+        // End of turn
+        if (msg.payload && msg.payload.stream === 'lifecycle' && msg.payload.data && msg.payload.data.phase === 'end') {
+          if (streamingEl) {
+            streamingEl.classList.remove('cursor-blink');
+            streamingEl.innerHTML = marked.parse(streamingText);
+            streamingEl = null;
+            streamingText = '';
+          }
+          sendBtn.disabled = false;
+          input.disabled = false;
+          input.focus();
+        }
+        return;
+      }
+    };
+
+    ws.onclose = () => {
+      gwReady = false;
+      input.disabled = true;
+      sendBtn.disabled = true;
+      setStatus('dead', 'disconnected');
+      // Auto-reconnect after 3s
+      setTimeout(() => connect(currentAgent, currentPort), 3000);
+    };
+
+    ws.onerror = () => setStatus('dead', 'error');
+  }
+
+  // ── Send message ───────────────────────────────────────────────────────
+  function send() {
+    const text = input.value.trim();
+    if (!text || !gwReady) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    input.disabled = true;
+
+    addMessage('user', text);
+    addThinking();
+
+    ws.send(JSON.stringify({
+      type: 'req',
+      id: String(reqId++),
+      method: 'chat.send',
+      params: {
+        sessionKey: 'main',
+        message: text,
+        idempotencyKey: crypto.randomUUID()
+      }
+    }));
+  }
+
+  // ── Input handlers ─────────────────────────────────────────────────────
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+
+  sendBtn.addEventListener('click', send);
+
+  // ── Agent switcher ─────────────────────────────────────────────────────
+  document.querySelectorAll('.agent-btn:not(.offline)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const agent = btn.dataset.agent;
+      const port  = parseInt(btn.dataset.port);
+      streamingEl = null;
+      streamingText = '';
+      messages.innerHTML = '';
+      connect(agent, port);
+    });
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  connect('BABY1', 30801);
+</script>
+</body>
+</html>
