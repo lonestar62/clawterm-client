@@ -261,9 +261,21 @@
 <!-- ── CHAT ── -->
 <div id="chat-screen">
   <div id="chat-header">
-    <div id="chat-status-dot"></div>
-    <div id="chat-agent-name">BABY1</div>
-    <button id="chat-disconnect">⬅ LOGOFF</button>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:13px;">🦞</span>
+      <span id="chat-agent-name" style="font-size:12px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace;">BABY1</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:16px;padding:0 12px;border-left:1px solid #1a1a1a;">
+      <span style="font-size:9px;color:#2a2a2a;letter-spacing:0.12em;font-family:'JetBrains Mono',monospace;">BRIDGE</span>
+      <span id="s-bridge-dot" style="width:7px;height:7px;border-radius:50%;background:#333;transition:all 0.3s;"></span>
+      <span id="s-bridge-txt" style="font-size:10px;color:#333;font-family:'JetBrains Mono',monospace;">waiting</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;padding:0 12px;border-left:1px solid #1a1a1a;">
+      <span style="font-size:9px;color:#2a2a2a;letter-spacing:0.12em;font-family:'JetBrains Mono',monospace;">AGENT</span>
+      <span id="s-agent-dot" style="width:7px;height:7px;border-radius:50%;background:#333;transition:all 0.3s;"></span>
+      <span id="s-agent-txt" style="font-size:10px;color:#333;font-family:'JetBrains Mono',monospace;">no session</span>
+    </div>
+    <button id="chat-disconnect" style="margin-left:auto;">⬅ LOGOFF</button>
   </div>
   <div id="chat-messages"></div>
   <div id="chat-input-area">
@@ -318,7 +330,22 @@
 
     ws = new WebSocket(BRIDGE_URL(applid));
 
-    ws.onopen = () => setVtamStatus('authenticating...', 'connecting');
+    function sSet(id, color, text) {
+      const dot = document.getElementById('s-' + id + '-dot');
+      const txt = document.getElementById('s-' + id + '-txt');
+      if (!dot || !txt) return;
+      const cols = { green:'#00e676', yellow:'#ffd740', red:'#ff4444', grey:'#333' };
+      dot.style.background = cols[color] || '#333';
+      dot.style.boxShadow = color === 'green' ? '0 0 5px #00e676' : color === 'yellow' ? '0 0 5px #ffd740' : 'none';
+      txt.style.color = color === 'grey' ? '#333' : (cols[color] || '#333');
+      txt.textContent = text;
+    }
+
+    ws.onopen = () => {
+      setVtamStatus('authenticating...', 'connecting');
+      sSet('bridge', 'yellow', 'connecting...');
+      sSet('agent', 'grey', 'waiting');
+    };
 
     ws.onmessage = (evt) => {
       let msg;
@@ -326,10 +353,14 @@
 
       if (msg._ctrl === 'ip_up') {
         setVtamStatus('authenticated', 'connecting');
+        sSet('bridge', 'green', 'fleet-vm ✓');
+        sSet('agent', 'yellow', applid + ' authing...');
         return;
       }
 
       if (msg._ctrl === 'session_open') {
+        sSet('bridge', 'green', 'fleet-vm ✓');
+        sSet('agent', 'green', applid + ' LIVE');
         // Switch to chat screen
         vtamScreen.style.display = 'none';
         chatScreen.style.display = 'flex';
@@ -379,6 +410,8 @@
       }
 
       if (msg._ctrl === 'ip_down') {
+        sSet('bridge', 'red', 'lost');
+        sSet('agent', 'red', 'disconnected');
         chatInput.disabled = true;
         chatSend.disabled = true;
         showVtam('Connection lost: ' + (msg.reason || 'disconnected'));
