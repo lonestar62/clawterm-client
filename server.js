@@ -26,8 +26,10 @@ const BABY_ROUTES = {
 app.use(express.static(path.join(__dirname, 'public')));
 
 wss.on('connection', (ws, req) => {
+  console.log('[clawterm-client] RAW req.url:', JSON.stringify(req.url));
   const url = new URL(req.url, 'http://localhost');
   const applid = (url.searchParams.get('applid') || '').toUpperCase().trim();
+  console.log('[clawterm-client] req.url=', req.url, 'applid=', applid);
   const babyRoute = BABY_ROUTES[applid];
 
   if (babyRoute) {

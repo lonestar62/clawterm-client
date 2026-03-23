@@ -175,25 +175,29 @@ class ClawTermClient {
   }
 
   _recv(data) {
-    // Check for JSON control messages from bridge server
-    if (data instanceof ArrayBuffer) {
-      const text = new TextDecoder().decode(data);
-      if (text.startsWith('{')) {
-        try {
-          const ctrl = JSON.parse(text);
-          if (ctrl._ctrl === 'ip_up'   && this.onIpUp)   { this.onIpUp();              return; }
-          if (ctrl._ctrl === 'ip_down' && this.onIpDown)  { this.onIpDown(ctrl.reason); return; }
-          if (ctrl._ctrl === 'session_open') {
-            this.sessionId = ctrl.sessionId;
-            this.connected = true;
-            localStorage.setItem('clawterm_session_id', ctrl.sessionId);
-            if (this.onConnect) this.onConnect(ctrl.sessionId);
-            return;
-          }
-          if (ctrl._ctrl === 'data' && this.onData) { this.onData(ctrl.text); return; }
-        } catch(e) {}
-      }
+    // Check for JSON control messages (string or ArrayBuffer)
+    let ctrlText = null;
+    if (typeof data === 'string') ctrlText = data;
+    else if (data instanceof ArrayBuffer) {
+      const t = new TextDecoder().decode(data);
+      if (t.startsWith('{')) ctrlText = t;
     }
+    if (ctrlText && ctrlText.startsWith('{')) {
+      try {
+        const ctrl = JSON.parse(ctrlText);
+        if (ctrl._ctrl === 'ip_up'   && this.onIpUp)   { this.onIpUp();              return; }
+        if (ctrl._ctrl === 'ip_down' && this.onIpDown)  { this.onIpDown(ctrl.reason); return; }
+        if (ctrl._ctrl === 'session_open') {
+          this.sessionId = ctrl.sessionId;
+          this.connected = true;
+          localStorage.setItem('clawterm_session_id', ctrl.sessionId);
+          if (this.onConnect) this.onConnect(ctrl.sessionId);
+          return;
+        }
+        if (ctrl._ctrl === 'data' && this.onData) { this.onData(ctrl.text); return; }
+      } catch(e) {}
+    }
+    if (typeof data === 'string') return; // ignore non-JSON strings
 
     const incoming = new Uint8Array(data);
     const combined = new Uint8Array(this.recvBuf.length + incoming.length);
