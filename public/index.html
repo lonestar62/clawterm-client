@@ -36,15 +36,13 @@
     <span id="logo">&#x26a1; CLAWTERM</span>
 
     <!-- Diagnostic indicators -->
-    <div class="diag-btn red hdr-btn" id="diag-ws" title="WebSocket: browser &rarr; fleet-vm">
-      <span class="diag-dot">&bull;</span> WS
+    <div id="status-pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;background:#1a1a1a;border:1px solid #333;font-size:11px;font-weight:700;letter-spacing:0.05em;">
+      <span id="status-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4444;"></span>
+      <span id="status-text" style="color:#aaa;">DISCONNECTED</span>
     </div>
-    <div class="diag-btn red hdr-btn" id="diag-ip" title="IP/TCP: fleet-vm &rarr; lobster:7220">
-      <span class="diag-dot">&bull;</span> IP
-    </div>
-    <div class="diag-btn red hdr-btn" id="diag-vt" title="VT220: ClawTerm session (CF_ACCEPT)">
-      <span class="diag-dot">&bull;</span> VT220
-    </div>
+    <div id="diag-ws" style="display:none"></div>
+    <div id="diag-ip" style="display:none"></div>
+    <div id="diag-vt" style="display:none"></div>
 
     <span class="hdr-sep">|</span>
 
@@ -107,9 +105,44 @@
     }
 
     // ── Diagnostics ───────────────────────────────────────────────────────
+    // Status states: disconnected → connecting → ip_up → live
+    function updateStatusPill() {
+      const ws = _diagState.ws, ip = _diagState.ip, vt = _diagState.vt;
+      const dot  = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const pill = document.getElementById('status-pill');
+      if (vt === 'green') {
+        dot.style.background = '#00e676';
+        dot.style.boxShadow = '0 0 6px #00e676';
+        text.style.color = '#00e676';
+        text.textContent = 'LIVE · ' + (document.getElementById('session-info').textContent || '');
+        pill.style.borderColor = '#00e67644';
+      } else if (ip === 'green' || ip === 'yellow') {
+        dot.style.background = '#ffd740';
+        dot.style.boxShadow = '0 0 6px #ffd740';
+        text.style.color = '#ffd740';
+        text.textContent = 'AUTHENTICATING';
+        pill.style.borderColor = '#ffd74044';
+      } else if (ws === 'green' || ws === 'yellow') {
+        dot.style.background = '#ffd740';
+        dot.style.boxShadow = '0 0 6px #ffd740';
+        text.style.color = '#ffd740';
+        text.textContent = 'CONNECTING';
+        pill.style.borderColor = '#ffd74044';
+      } else {
+        dot.style.background = '#ff4444';
+        dot.style.boxShadow = 'none';
+        text.style.color = '#888';
+        text.textContent = 'DISCONNECTED';
+        pill.style.borderColor = '#333';
+      }
+    }
+    const _diagState = {ws:'red', ip:'red', vt:'red'};
     function setDiag(id, state, tooltip) {
+      _diagState[id] = state;
+      updateStatusPill();
       const el = document.getElementById('diag-' + id);
-      el.className = 'diag-btn hdr-btn ' + state;
+      if (el) el.className = 'diag-btn hdr-btn ' + state;
       if (tooltip) el.title = tooltip;
       updateFooter();
     }
@@ -300,7 +333,7 @@
     client.onConnect = (sessionId) => {
       const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
       setDiag('vt', 'green', 'VT220: session ' + hex + ' \u2713');
-      document.getElementById('session-info').textContent = 'session ' + hex;
+      document.getElementById('session-info').textContent = 'session ' + hex; updateStatusPill();
       document.getElementById('footer-session').textContent = 'session: ' + hex;
       localStorage.setItem('clawterm_session_id', sessionId);
       term.writeln('\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 session ' + hex);
