@@ -393,7 +393,12 @@
       }
     }
 
-    // ── Button handlers ───────────────────────────────────────────────────
+    // Intercept F5 before Firefox can steal it
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'F5') { e.preventDefault(); e.stopPropagation(); document.getElementById('btn-f5').click(); }
+    }, true); // capture phase
+
+        // ── Button handlers ───────────────────────────────────────────────────
     document.getElementById('btn-connect').onclick    = () => doConnect(null);
     document.getElementById('btn-disconnect').onclick = () => {
       if (client) client.disconnect();
@@ -429,7 +434,7 @@
       if (e.key === 'F1') { e.preventDefault(); document.getElementById('btn-f1').click(); }
       if (e.key === 'F2') { e.preventDefault(); document.getElementById('btn-f2').click(); }
       if (e.key === 'F3') { e.preventDefault(); document.getElementById('btn-f3').click(); }
-      if (e.key === 'F5') { e.preventDefault(); document.getElementById('btn-f5').click(); }
+      if (e.key === 'F5') { e.preventDefault(); e.stopPropagation(); document.getElementById('btn-f5').click(); }
       if (e.key === 'F9') { e.preventDefault(); document.getElementById('btn-f9').click(); }
     });
 
