@@ -29,87 +29,93 @@
       border-radius: 3px;
     }
     #applid-input:focus { border-color: #00ff41; box-shadow: 0 0 6px #00ff4133; }
+    .layer-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 5px;
+      background: #0d0d0d; border: 1px solid #1a1a1a;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    }
+    .layer-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #ff4444; transition: background 0.3s, box-shadow 0.3s;
+    }
+    .layer-label { color: #333; font-size: 9px; letter-spacing: 0.12em; }
+    .layer-value { color: #555; }
   </style>
 </head>
 <body>
   <div id="header">
     <span id="logo">&#x26a1; CLAWTERM</span>
 
-    <!-- Diagnostic indicators -->
-    <div style="display:inline-flex;align-items:center;gap:10px;">
-      <!-- Layer 1: CNA Controller (clawd/VTAM) -->
-      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
-        <span id="l1-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
-        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">BRIDGE</span>
-        <span id="l1-text" style="color:#666;font-size:11px;">bridge</span>
-      </div>
-      <!-- Layer 2: Target Agent -->
-      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
-        <span id="l2-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
-        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">AGENT</span>
-        <span id="l2-text" style="color:#666;font-size:11px;">no agent</span>
-      </div>
+    <!-- Two-layer status -->
+    <div class="layer-pill" title="Layer 1: Bridge / Controller">
+      <span class="layer-dot" id="l1-dot"></span>
+      <span class="layer-label">BRIDGE</span>
+      <span class="layer-value" id="l1-val">offline</span>
     </div>
-    <div id="diag-ws" style="display:none"></div>
-    <div id="diag-ip" style="display:none"></div>
-    <div id="diag-vt" style="display:none"></div>
+    <div class="layer-pill" title="Layer 2: Target agent session">
+      <span class="layer-dot" id="l2-dot"></span>
+      <span class="layer-label">AGENT</span>
+      <span class="layer-value" id="l2-val">no session</span>
+    </div>
+
+    <!-- Hidden legacy diag elements (keep for JS compat) -->
+    <span id="diag-ws" style="display:none"></span>
+    <span id="diag-ip" style="display:none"></span>
+    <span id="diag-vt" style="display:none"></span>
 
     <span class="hdr-sep">|</span>
 
-    <!-- APPLID shortcut input -->
     <span class="hdr-label">APPLID:</span>
-    <input type="text" id="applid-input" value="CLAW" maxlength="8"
-           placeholder="APPLID" title="Target APPLID &mdash; F2 for VTAM logon screen">
+    <input type="text" id="applid-input" value="BABY1" maxlength="8"
+           placeholder="APPLID" title="Target APPLID — F2 for logon screen">
 
     <span class="hdr-sep">|</span>
 
-    <!-- Session actions -->
     <button class="hdr-btn act-btn" id="btn-connect">Connect</button>
     <button class="hdr-btn act-btn amber" id="btn-resume">Resume</button>
     <button class="hdr-btn act-btn red-btn" id="btn-disconnect">Disconnect</button>
 
     <span class="hdr-sep">|</span>
 
-    <!-- F-keys -->
-    <button class="hdr-btn fkey-btn" id="btn-f1"  title="F1 &mdash; Help">          <span class="fkey-label">F1</span> Help</button>
-    <button class="hdr-btn fkey-btn" id="btn-f2"  title="F2 &mdash; VTAM Logon">    <span class="fkey-label">F2</span> VTAM</button>
-    <button class="hdr-btn fkey-btn" id="btn-f3"  title="F3 &mdash; List sessions"> <span class="fkey-label">F3</span> Sessions</button>
-    <button class="hdr-btn fkey-btn" id="btn-f5"  title="F5 &mdash; Suspend">       <span class="fkey-label">F5</span> Suspend</button>
-    <button class="hdr-btn fkey-btn" id="btn-f9"  title="F9 &mdash; Ping keepalive"><span class="fkey-label">F9</span> Ping</button>
+    <button class="hdr-btn fkey-btn" id="btn-f1"><span class="fkey-label">F1</span> Help</button>
+    <button class="hdr-btn fkey-btn" id="btn-f2"><span class="fkey-label">F2</span> VTAM</button>
+    <button class="hdr-btn fkey-btn" id="btn-f3"><span class="fkey-label">F3</span> Sessions</button>
+    <button class="hdr-btn fkey-btn" id="btn-f5"><span class="fkey-label">F5</span> Resume</button>
+    <button class="hdr-btn fkey-btn" id="btn-f9"><span class="fkey-label">F9</span> Ping</button>
 
     <span class="hdr-sep">|</span>
-
-    <span id="session-info">no agent</span>
+    <span id="session-info">no session</span>
   </div>
 
-  <div style="position:relative;">
-    <div id="diag-overlay" style="
-      position:absolute; top:10px; right:10px; z-index:50;
-      background:rgba(0,0,0,0.88); border:1px solid #1e1e1e;
-      border-radius:8px; padding:10px 14px; font-family:'JetBrains Mono',monospace;
-      font-size:11px; line-height:2; min-width:230px;
-      pointer-events:none;
-    ">
-      <div style="color:#333;font-size:9px;letter-spacing:0.15em;margin-bottom:4px;">SYSTEM STATUS</div>
-      <div><span id="dov-internet-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-internet-txt" style="color:#444;">INTERNET   checking</span></div>
-      <div><span id="dov-xterm-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-xterm-txt" style="color:#444;">XTERM      loading</span></div>
-      <div><span id="dov-ws-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-ws-txt" style="color:#444;">BRIDGE     waiting</span></div>
-      <div><span id="dov-agent-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-agent-txt" style="color:#444;">AGENT      no session</span></div>
-    </div>
-    <div id="terminal-container"></div>
+  <div id="terminal-container"></div>
+
+  <!-- On-screen diagnostics overlay -->
+  <div id="diag-panel" style="
+    position:fixed; bottom:40px; right:12px; z-index:100;
+    background:rgba(8,8,8,0.92); border:1px solid #1e1e1e;
+    border-radius:6px; padding:8px 12px;
+    font-family:'JetBrains Mono',monospace; font-size:10px;
+    line-height:1.9; min-width:200px; pointer-events:none;
+  ">
+    <div style="color:#2a2a2a;font-size:9px;letter-spacing:0.15em;margin-bottom:2px;">DIAGNOSTICS</div>
+    <div id="dp-internet"><span class="dp-dot" id="dp-internet-dot">●</span> <span id="dp-internet-txt" style="color:#333;">INTERNET  ...</span></div>
+    <div id="dp-xterm"><span class="dp-dot" id="dp-xterm-dot">●</span> <span id="dp-xterm-txt" style="color:#333;">XTERM     ...</span></div>
+    <div id="dp-bridge"><span class="dp-dot" id="dp-bridge-dot">●</span> <span id="dp-bridge-txt" style="color:#333;">BRIDGE    waiting</span></div>
+    <div id="dp-agent"><span class="dp-dot" id="dp-agent-dot">●</span> <span id="dp-agent-txt" style="color:#333;">AGENT     no session</span></div>
   </div>
 
   <div id="footer">
-    <span id="footer-session">session: &mdash;</span>
-    <span id="footer-diag">WS:&#x1F534; IP:&#x1F534; VT:&#x1F534;</span>
-    <span id="footer-status">ClawTerm v0.1.0 &middot; clawd :7220 &middot; lobster-1</span>
+    <span id="footer-session">session: —</span>
+    <span id="footer-status">ClawTerm v0.1.0 · lobster-1</span>
   </div>
 
   <script src="/lib/xterm.js"></script>
   <script src="/lib/xterm-addon-fit.js"></script>
   <script src="clawterm.js"></script>
   <script>
-    // ── APPLID routing table — Baby Claw pods on lobster-1 ──────────────────
+    // ── APPLID table ──────────────────────────────────────────────────────
     const APPLIDS = [
       { applid: 'BABY1',  desc: 'Baby Claw 001',           host: '100.114.163.66',  port: 30801, active: true  },
       { applid: 'BABY2',  desc: 'Baby Claw 002',           host: '100.114.163.66',  port: 30802, active: false },
@@ -118,72 +124,63 @@
       { applid: 'BABY5',  desc: 'Baby Claw 005',           host: '100.114.163.66',  port: 30804, active: true  },
     ];
 
-    // ── UI state ──────────────────────────────────────────────────────────
-    let uiState = 'splash'; // 'splash' | 'vtam' | 'session'
+    let uiState = 'splash';
     let vtamRefreshTimer = null;
-
-    // ── Helpers ───────────────────────────────────────────────────────────
     const applidInput = document.getElementById('applid-input');
-
     function getApplid() {
-      return (applidInput.value || 'CLAW').toUpperCase().padEnd(8, ' ').substring(0, 8);
+      return (applidInput.value || 'BABY1').toUpperCase().padEnd(8, ' ').substring(0, 8);
     }
 
     // ── Diagnostics ───────────────────────────────────────────────────────
-    function updateStatusPill() {
-      const ws = _diagState.ws, ip = _diagState.ip, vt = _diagState.vt;
-      const l1dot  = document.getElementById('l1-dot');
-      const l1text = document.getElementById('l1-text');
-      const l2dot  = document.getElementById('l2-dot');
-      const l2text = document.getElementById('l2-text');
-      const applid = (document.getElementById('applid-input')?.value || '').trim().toUpperCase();
-      const isBaby = applid.startsWith('BABY');
+    const _ds = { ws: 'red', ip: 'red', vt: 'red' };
 
-      // Layer 1: Controller (clawd for legacy, or "CTRL" for baby)
-      if (ws === 'green' || ws === 'yellow') {
-        l1dot.style.background = '#00e676';
-        l1dot.style.boxShadow = '0 0 6px #00e676';
-        l1text.style.color = '#00e676';
-        l1text.textContent = isBaby ? 'GW :30801' : 'clawd :7220';
-      } else if (ws === 'yellow') {
-        l1dot.style.background = '#ffd740';
-        l1dot.style.boxShadow = '0 0 6px #ffd740';
-        l1text.style.color = '#ffd740';
-        l1text.textContent = 'bridge · connecting';
-      } else {
-        l1dot.style.background = '#ff4444';
-        l1dot.style.boxShadow = 'none';
-        l1text.style.color = '#555';
-        l1text.textContent = 'bridge · fleet-vm';
-      }
-
-      // Layer 2: Target agent session
-      if (vt === 'green') {
-        l2dot.style.background = '#00e676';
-        l2dot.style.boxShadow = '0 0 6px #00e676';
-        l2text.style.color = '#00e676';
-        l2text.textContent = (applid || 'agent') + ' · live';
-      } else if (ip === 'yellow' || ip === 'green') {
-        l2dot.style.background = '#ffd740';
-        l2dot.style.boxShadow = '0 0 6px #ffd740';
-        l2text.style.color = '#ffd740';
-        l2text.textContent = (applid || 'agent') + ' · authing';
-      } else {
-        l2dot.style.background = '#ff4444';
-        l2dot.style.boxShadow = 'none';
-        l2text.style.color = '#555';
-        l2text.textContent = 'no session';
-      }
+    function dpSet(id, color, text) {
+      const dot = document.getElementById('dp-' + id + '-dot');
+      const txt = document.getElementById('dp-' + id + '-txt');
+      if (!dot || !txt) return;
+      const cols = { green: '#00e676', yellow: '#ffd740', red: '#ff4444', grey: '#333' };
+      dot.style.color = cols[color] || '#333';
+      dot.style.textShadow = color === 'green' ? '0 0 4px #00e676' : color === 'yellow' ? '0 0 4px #ffd740' : 'none';
+      txt.style.color = color === 'grey' ? '#333' : (cols[color] || '#333');
+      txt.textContent = text;
     }
-    const _diagState = {ws:'red', ip:'red', vt:'red'};
+
+    function layerSet(layer, color, val) {
+      const dot = document.getElementById('l' + layer + '-dot');
+      const valEl = document.getElementById('l' + layer + '-val');
+      if (!dot || !valEl) return;
+      const cols = { green: '#00e676', yellow: '#ffd740', red: '#ff4444', grey: '#333' };
+      dot.style.background = cols[color] || '#333';
+      dot.style.boxShadow = color === 'green' ? '0 0 5px #00e676' : color === 'yellow' ? '0 0 5px #ffd740' : 'none';
+      valEl.style.color = color === 'grey' ? '#333' : (cols[color] || '#333');
+      valEl.textContent = val;
+    }
+
     function setDiag(id, state, tooltip) {
-      _diagState[id] = state;
-      updateStatusPill();
+      _ds[id] = state;
       const el = document.getElementById('diag-' + id);
-      if (el) { el.className = 'diag-btn hdr-btn ' + state; if (tooltip) el.title = tooltip; }
-    }
+      if (el) el.className = state;
 
-    function updateFooter() { /* noop */ }
+      const applid = applidInput.value.trim().toUpperCase();
+
+      // Layer 1 = BRIDGE (ws state)
+      if (id === 'ws') {
+        if (state === 'green') { layerSet(1,'green','fleet-vm ✓'); dpSet('bridge','green','BRIDGE    fleet-vm ✓'); }
+        else if (state === 'yellow') { layerSet(1,'yellow','connecting...'); dpSet('bridge','yellow','BRIDGE    connecting...'); }
+        else { layerSet(1,'grey','offline'); dpSet('bridge','grey','BRIDGE    waiting'); }
+      }
+
+      // Layer 2 = AGENT (ip/vt state)
+      if (id === 'ip') {
+        if (state === 'green') { layerSet(2,'green', applid + ' ✓'); dpSet('agent','green','AGENT     ' + applid + ' ✓'); }
+        else if (state === 'yellow') { layerSet(2,'yellow', applid + ' auth...'); dpSet('agent','yellow','AGENT     ' + applid + ' auth...'); }
+        else { layerSet(2,'grey','no session'); dpSet('agent','grey','AGENT     no session'); }
+      }
+      if (id === 'vt') {
+        if (state === 'green') { layerSet(2,'green', applid + ' LIVE'); dpSet('agent','green','AGENT     ' + applid + ' LIVE ●'); }
+        else if (state === 'red') { layerSet(2,'red','disconnected'); dpSet('agent','red','AGENT     disconnected'); }
+      }
+    }
 
     // ── xterm.js setup ────────────────────────────────────────────────────
     const term = new Terminal({
@@ -201,65 +198,61 @@
       cursorBlink: true, cursorStyle: 'block',
       scrollback: 2000, convertEol: true,
     });
-
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(document.getElementById('terminal-container'));
     fitAddon.fit();
     window.addEventListener('resize', () => fitAddon.fit());
 
+    // ── Boot diagnostics ──────────────────────────────────────────────────
+    // Check xterm loaded
+    if (typeof Terminal !== 'undefined') {
+      dpSet('xterm', 'green', 'XTERM     v5.3 ok');
+    } else {
+      dpSet('xterm', 'red', 'XTERM     FAILED');
+    }
+    // Check internet
+    fetch('/lib/xterm.js', { method: 'HEAD' })
+      .then(() => dpSet('internet', 'green', 'INTERNET  ok'))
+      .catch(() => dpSet('internet', 'red', 'INTERNET  error'));
+
     // ── ANSI helpers ──────────────────────────────────────────────────────
     const A = {
       reset:  '\x1b[0m',
-      cyan:   '\x1b[36m',   // dim cyan  — borders
-      bcyan:  '\x1b[96m',  // bright cyan — logo + f-key names
-      white:  '\x1b[37m',   // white — labels
-      bwhite: '\x1b[97m',  // bright white — APPLID names
-      bgreen: '\x1b[92m',  // bright green — values, active dot
-      dim:    '\x1b[2m',    // dim — underscores, IPs, offline dot
+      cyan:   '\x1b[36m', bcyan: '\x1b[96m',
+      white:  '\x1b[37m', bwhite: '\x1b[97m',
+      bgreen: '\x1b[92m', dim: '\x1b[2m',
     };
-
-    // Strip ANSI codes to measure visual width
     function vis(s) { return s.replace(/\x1b\[[0-9;]*m/g, ''); }
-
-    // Build a double-box bordered line: content padded to fill 66 visual cols
-    // Total line: ║ + 66 chars + ║ = 68 visible chars
     const INNER = 66;
     function bl(content) {
       const pad = Math.max(0, INNER - vis(content).length);
       return A.cyan + '\u2551' + A.reset + content + ' '.repeat(pad) + A.cyan + '\u2551' + A.reset;
     }
-
     const BOX_TOP = A.cyan + '\u2554' + '\u2550'.repeat(INNER) + '\u2557' + A.reset;
     const BOX_SEP = A.cyan + '\u2560' + '\u2550'.repeat(INNER) + '\u2563' + A.reset;
     const BOX_BOT = A.cyan + '\u255a' + '\u2550'.repeat(INNER) + '\u255d' + A.reset;
     const BOX_BLK = bl('');
 
-    // ── VTAM Screen render ────────────────────────────────────────────────
+    // ── VTAM screen ───────────────────────────────────────────────────────
     function renderVtam() {
       const rawVal = (applidInput.value || '').toUpperCase().substring(0, 8);
       const rest   = 8 - rawVal.length;
-
       const applidLine =
         A.white + '  APPLID  \u25b6  ' + A.reset +
         (rawVal ? A.bgreen + rawVal + A.reset : '') +
         (rest > 0 ? A.dim + '_'.repeat(rest) + A.reset : '');
-
-      // Logo — 6 lines of ASCII art in bright cyan
-      const L = A.bcyan;
-      const R = A.reset;
+      const L = A.bcyan, R = A.reset;
       const logo = [
-        L+' ██████╗██╗      █████╗ ██╗    ██╗████████╗███████╗██████╗ ███╗   ███╗'+R,
-        L+'██╔════╝██║     ██╔══██╗██║    ██║╚══██╔══╝██╔════╝██╔══██╗████╗ ████║'+R,
-        L+'██║     ██║     ███████║██║ █╗ ██║   ██║   █████╗  ██████╔╝██╔████╔██║'+R,
-        L+'██║     ██║     ██╔══██║██║███╗██║   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║'+R,
-        L+'╚██████╗███████╗██║  ██║╚███╔███╔╝   ██║   ███████╗██║  ██║██║ ╚═╝ ██║'+R,
-        L+' ╚═════╝╚══════╝╚═╝  ╚═╝ ╚══╝╚══╝    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝'+R,
+        L+' \u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557    \u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2557   \u2588\u2588\u2588\u2557'+R,
+        L+'\u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551    \u2588\u2588\u2551\u255a\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2551'+R,
+        L+'\u2588\u2588\u2551     \u2588\u2588\u2551     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551\u2588\u2588\u2551 \u2588\u2557 \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2554\u2588\u2588\u2588\u2588\u2554\u2588\u2588\u2551'+R,
+        L+'\u2588\u2588\u2551     \u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551\u2588\u2588\u2551\u2588\u2588\u2588\u2557\u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2554\u2550\u2550\u255d  \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551\u255a\u2588\u2588\u2554\u255d\u2588\u2588\u2551'+R,
+        L+'\u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255d   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u2588\u2588\u2551 \u255a\u2550\u255d \u2588\u2588\u2551'+R,
+        L+' \u255a\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u255d\u255a\u2550\u2550\u255d    \u255a\u2550\u255d   \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d\u255a\u2550\u255d     \u255a\u2550\u255d'+R,
       ];
-
       const net1 = A.white+'  NETWORK  :  '+A.bgreen+'CLAWNET-1'+A.white+'          NODE  :  '+A.bgreen+'LOBSTER-1'+A.reset;
       const net2 = A.white+'  PROTOCOL :  '+A.bgreen+'CLAWTERM V0.1'+A.white+'      PORT  :  '+A.bgreen+'7220'+A.reset;
-
       const applidRows = APPLIDS.map(a => {
         const dot  = a.active ? A.bgreen + '\u25cf' + A.reset : A.dim + '\u25cb' + A.reset;
         const name = A.bwhite + a.applid.padEnd(8) + A.reset;
@@ -267,16 +260,7 @@
         const addr = A.dim    + a.host + ':' + a.port + A.reset;
         return bl('  ' + name + dot + '  ' + desc + addr);
       });
-
-      const fkbar =
-        '  ' + A.bcyan+'ENTER'+A.white+'=LOGON  ' +
-                A.bcyan+'F1'+A.white+'=HELP  ' +
-                A.bcyan+'F3'+A.white+'=LIST  ' +
-                A.bcyan+'F5'+A.white+'=RESUME  ' +
-                A.bcyan+'F9'+A.white+'=PING  ' +
-                A.bcyan+'ESC'+A.white+'=BACK'+A.reset;
-
-      // ── Write to terminal ─────────────────────────────────────────────
+      const fkbar = '  '+A.bcyan+'ENTER'+A.white+'=LOGON  '+A.bcyan+'F1'+A.white+'=HELP  '+A.bcyan+'F3'+A.white+'=LIST  '+A.bcyan+'F5'+A.white+'=RESUME  '+A.bcyan+'F9'+A.white+'=PING  '+A.bcyan+'ESC'+A.white+'=BACK'+A.reset;
       term.write('\x1b[2J\x1b[H');
       term.writeln(BOX_TOP);
       term.writeln(BOX_BLK);
@@ -292,8 +276,7 @@
       term.writeln(BOX_SEP);
       applidRows.forEach(row => term.writeln(row));
       term.writeln(BOX_SEP);
-      term.writeln(bl(fkbar));
-      term.write(BOX_BOT);
+      term.write(bl(fkbar));
     }
 
     function showVtam() {
@@ -301,41 +284,27 @@
       renderVtam();
       applidInput.focus();
       applidInput.select();
-
-      // Live update VTAM screen as user types in the APPLID input
       if (vtamRefreshTimer) clearInterval(vtamRefreshTimer);
-      vtamRefreshTimer = setInterval(() => {
-        if (uiState === 'vtam') renderVtam();
-      }, 150);
+      vtamRefreshTimer = setInterval(() => { if (uiState === 'vtam') renderVtam(); }, 150);
     }
 
     function stopVtamRefresh() {
       if (vtamRefreshTimer) { clearInterval(vtamRefreshTimer); vtamRefreshTimer = null; }
     }
 
-    // ── Splash Screen ─────────────────────────────────────────────────────
     function showSplash() {
       uiState = 'splash';
       stopVtamRefresh();
       term.write('\x1b[2J\x1b[H');
-      term.writeln('\x1b[36m');
-      term.writeln('  \u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2557    \u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2557   \u2588\u2588\u2588\u2557');
-      term.writeln(' \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2557    \u2588\u2557\u255a\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255d\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2551');
-      term.writeln(' \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551\u2588\u2557 \u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d\u2588\u2588\u2554\u2588\u2588\u2588\u2588\u2554\u2588\u2588\u2551');
-      term.writeln(' \u2588\u2588\u2551     \u2588\u2557     \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551\u2588\u2557\u2588\u2588\u2588\u2557 \u2588\u2557   \u2588\u2588\u2551   \u2588\u2588\u2554\u2550\u2550\u255d  \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2557\u2588\u2588\u2551\u255a\u2588\u2588\u2554\u255d\u2588\u2588\u2551');
-      term.writeln(' \u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u255a\u2588\u2588\u2588\u2554\u2588\u2588\u2588\u2554\u255d   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551  \u2588\u2588\u2551\u2588\u2588\u2551 \u255a\u2550\u255d \u2588\u2588\u2551');
-      term.writeln('  \u255a\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d \u255a\u2550\u2550\u255d\u255a\u2550\u2550\u255d    \u255a\u2550\u255d   \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d  \u255a\u2550\u255d\u255a\u2550\u255d     \u255a\u2550\u255d');
-      term.writeln('\x1b[0m');
-      term.writeln('\x1b[90m  X.25-inspired session protocol \u00b7 Port 7220 (VT220) \u00b7 HDLC frames\x1b[0m\r\n');
-      term.writeln('  \x1b[33mWS\x1b[0m  browser \u2192 fleet-vm WebSocket');
-      term.writeln('  \x1b[33mIP\x1b[0m  fleet-vm TCP \u2192 lobster:7220 (clawd)');
-      term.writeln('  \x1b[33mVT220\x1b[0m  CF_ACCEPT \u00b7 session established\r\n');
-      term.writeln('  Press \x1b[92mF2\x1b[0m for VTAM logon \u00b7 \x1b[32mConnect\x1b[0m to quick-connect \u00b7 \x1b[36mF1\x1b[0m for help\r\n');
+      term.writeln('\x1b[36m  ClawTerm v0.1.0\x1b[0m\r\n');
+      term.writeln('  \x1b[90mSession-persistent AI terminal · CNA protocol\x1b[0m\r\n');
+      term.writeln('  Press \x1b[92mF2\x1b[0m for logon screen · \x1b[32mConnect\x1b[0m to quick-connect · \x1b[36mF1\x1b[0m for help\r\n');
     }
 
-    // ── ClawTerm client ───────────────────────────────────────────────────
-    const wsUrl = (applid) => `wss://${window.location.host}/clawterm-ws?applid=${encodeURIComponent(applid)}`;
+    // ── ClawTerm connection ───────────────────────────────────────────────
+    const wsUrl = (applid) => 'wss://' + window.location.host + '/clawterm-ws?applid=' + encodeURIComponent(applid);
     let client = null;
+
     function getOrCreateClient(applid) {
       if (client) { try { client.disconnect(); } catch(e) {} }
       client = new ClawTermClient(wsUrl(applid));
@@ -343,188 +312,114 @@
     }
 
     function doConnect(resumeId, applid) {
-      applid = (applid || getApplid()).trim();
-      const client = getOrCreateClient(applid);
-    client.onIpUp = () => {
-      setDiag('ip', 'green', 'IP: lobster:7220 \u2713');
-      term.writeln('\x1b[32m[IP]\x1b[0m \u2713 lobster:7220 connected');
-      term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT \u2192 clawd...');
-    };
-
-    client.onIpDown = (reason) => {
-      setDiag('ip', 'red', 'IP: lost \u2014 ' + (reason || '?'));
-      setDiag('vt', 'red', 'VT220: session suspended');
-      if (uiState === 'session') {
-        term.writeln('\x1b[31m[IP]\x1b[0m \u2717 lost: ' + (reason || 'TCP closed'));
-      }
-    };
-
-    client.onConnect = (sessionId) => {
-      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
-      setDiag('vt', 'green', 'VT220: session ' + hex + ' \u2713');
-      document.getElementById('session-info').textContent = 'session ' + hex; updateStatusPill();
-      document.getElementById('footer-session').textContent = 'session: ' + hex;
-      localStorage.setItem('clawterm_session_id', sessionId);
-      term.writeln('\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 session ' + hex);
-      term.writeln('\x1b[90m    All layers green. Type to send CF_DATA.\x1b[0m\r\n');
-      term.write('\x1b[32m$\x1b[0m ');
-    };
-
-    client.onData = (text) => term.write(text);
       stopVtamRefresh();
       uiState = 'session';
+      const applidStr = (applid || getApplid()).toUpperCase().padEnd(8,' ').substring(0,8);
+      const cl = getOrCreateClient(applidStr.trim());
 
-      setDiag('ws', 'yellow', 'WS: connecting to fleet-vm...');
-      setDiag('ip', 'red',    'IP: waiting for WS...');
-      setDiag('vt', 'red',    'VT220: no session');
+      setDiag('ws', 'yellow', 'connecting...');
+      setDiag('ip', 'red', 'waiting...');
+      setDiag('vt', 'red', 'no session');
 
-      const applidStr = (applid || getApplid()).toUpperCase().padEnd(8, ' ').substring(0, 8);
-      client.connect(resumeId, applidStr);
+      cl.connect(resumeId, applidStr);
 
-      client.ws.onopen = () => {
-        setDiag('ws', 'green', 'WS: fleet-vm \u2713');
-        setDiag('ip', 'yellow', 'IP: TCP \u2192 lobster:7220...');
+      cl.ws.onopen = () => {
+        setDiag('ws', 'green', 'bridge ok');
+        setDiag('ip', 'yellow', 'authenticating...');
         term.write('\x1b[2J\x1b[H');
-        term.writeln('\x1b[32m[WS]\x1b[0m \u2713 fleet-vm connected');
-        term.writeln('\x1b[33m[IP]\x1b[0m TCP \u2192 lobster:7220...');
-        if (!resumeId) {
-          term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT APPLID=' + applidStr.trim() + '...');
-        }
+        term.writeln('\x1b[32m[BRIDGE]\x1b[0m \u2713 fleet-vm connected');
+        term.writeln('\x1b[33m[AGENT]\x1b[0m  authenticating ' + applidStr.trim() + '...');
       };
 
-      client.ws.onerror = () => {
-        setDiag('ws', 'red', 'WS: failed \u2717');
-        setDiag('ip', 'red', 'IP: WS failed');
-        term.writeln('\x1b[31m[WS]\x1b[0m \u2717 WebSocket failed');
+      cl.ws.onerror = () => {
+        setDiag('ws', 'red', 'failed');
+        setDiag('ip', 'red', 'failed');
+        term.writeln('\x1b[31m[BRIDGE]\x1b[0m \u2717 WebSocket failed');
+      };
+
+      cl.onIpUp = () => {
+        setDiag('ip', 'green', 'agent ok');
+        term.writeln('\x1b[32m[AGENT]\x1b[0m  \u2713 gateway authenticated');
+      };
+
+      cl.onIpDown = (reason) => {
+        setDiag('ip', 'red', 'lost');
+        setDiag('vt', 'red', 'suspended');
+        term.writeln('\x1b[31m[AGENT]\x1b[0m \u2717 lost: ' + (reason || 'closed'));
+      };
+
+      cl.onConnect = (sessionId) => {
+        const hex = '0x' + sessionId.toString(16).padStart(8,'0').toUpperCase();
+        setDiag('vt', 'green', 'live');
+        document.getElementById('session-info').textContent = applidStr.trim() + ' · ' + hex;
+        document.getElementById('footer-session').textContent = 'session: ' + hex;
+        localStorage.setItem('clawterm_session_id', sessionId);
+        term.writeln('\x1b[32m[SESSION]\x1b[0m \u2713 ' + hex + ' — type to send\r\n');
+        term.write('\x1b[32m$\x1b[0m ');
+      };
+
+      cl.onData = (text) => term.write(text);
+
+      cl.onDisconnect = () => {
+        setDiag('ws', 'red', 'closed');
+        setDiag('ip', 'red', 'closed');
+        setDiag('vt', 'red', 'suspended');
+        document.getElementById('session-info').textContent = 'suspended';
+        term.writeln('\r\n\x1b[31m[BRIDGE]\x1b[0m Disconnected — F5 to resume\r\n');
       };
     }
 
-
-
-    client.onDisconnect = () => {
-      setDiag('ws', 'red', 'WS: closed');
-      setDiag('ip', 'red', 'IP: closed');
-      setDiag('vt', 'red', 'VT220: suspended \u2014 F5/Resume to restore');
-      document.getElementById('session-info').textContent = 'suspended';
-      if (uiState === 'session') {
-        term.writeln('\r\n\x1b[31m[WS]\x1b[0m Disconnected \u2014 session held on clawd');
-        term.writeln('\x1b[33m     Press Resume or F5 to restore\x1b[0m');
-      }
-    };
-
-    // Keyboard input in session mode
     term.onData((data) => {
-      if (uiState !== 'session') return;
+      if (uiState !== 'session' || !client) return;
       client.sendData(data);
       term.write(data);
     });
 
-    // ── ESC handler — universal back ──────────────────────────────────────
     function handleEsc() {
-      if (uiState === 'session') {
-        // Suspend session, go to VTAM
+      if (uiState === 'session' && client) {
         client.suspend();
-        setDiag('vt', 'red', 'VT220: suspended');
+        setDiag('vt', 'red', 'suspended');
         document.getElementById('session-info').textContent = 'suspended';
         showVtam();
       } else if (uiState === 'vtam') {
-        // Back to splash
         stopVtamRefresh();
         showSplash();
       }
-      // If splash, ESC does nothing
     }
 
     // ── Button handlers ───────────────────────────────────────────────────
     document.getElementById('btn-connect').onclick    = () => doConnect(null);
     document.getElementById('btn-disconnect').onclick = () => {
-      client.disconnect();
-      setDiag('ws', 'red', 'WS: closed');
-      setDiag('ip', 'red', 'IP: closed');
-      setDiag('vt', 'red', 'VT220: disconnected');
+      if (client) client.disconnect();
+      setDiag('ws','red',''); setDiag('ip','red',''); setDiag('vt','red','');
       document.getElementById('session-info').textContent = 'no session';
       showSplash();
     };
-    document.getElementById('btn-f9').onclick = () => {
-      client.sendPing();
-      if (uiState === 'session') term.writeln('\r\n\x1b[90m\u2192 CF_PING\x1b[0m');
-    };
-
+    document.getElementById('btn-f9').onclick = () => { if (client) client.sendPing(); };
     document.getElementById('btn-resume').onclick =
     document.getElementById('btn-f5').onclick = () => {
       const saved = localStorage.getItem('clawterm_session_id');
-      if (saved) {
-        if (uiState === 'session') {
-          term.writeln('\r\n\x1b[33m[VT]\x1b[0m CF_RESUME session ' + saved + '...');
-        }
-        doConnect(parseInt(saved));
-      } else {
-        if (uiState === 'session') term.writeln('\r\n\x1b[31mNo saved session \u2014 use Connect\x1b[0m');
-        else showVtam();
-      }
+      if (saved) doConnect(parseInt(saved));
+      else showVtam();
     };
-
     document.getElementById('btn-f1').onclick = () => {
-      if (uiState !== 'session') {
-        showSplash();
-        setTimeout(() => {
-          term.writeln('\r\n\x1b[96mClawTerm v0.1.0 \u2014 Key Reference\x1b[0m');
-          term.writeln('  F1  This help');
-          term.writeln('  F2  VTAM logon screen (type APPLID + ENTER to connect)');
-          term.writeln('  F5  Suspend/Resume (CF_SUSPEND / CF_RESUME)');
-          term.writeln('  F9  Ping keepalive (CF_PING \u2192 CF_PONG)');
-          term.writeln('  ESC From session \u2192 VTAM \u00b7 From VTAM \u2192 splash');
-          term.writeln('  Diag: WS=WebSocket  IP=TCP/lobster  VT220=session\r\n');
-        }, 50);
-      } else {
-        term.writeln('\r\n\x1b[96mClawTerm v0.1.0 \u2014 Key Reference\x1b[0m');
-        term.writeln('  ESC  Back to VTAM logon  F9  Ping\r\n');
-      }
+      term.writeln('\r\n\x1b[96mF1=Help F2=VTAM F5=Resume F9=Ping ESC=Back\x1b[0m\r\n');
     };
-
     document.getElementById('btn-f2').onclick = () => showVtam();
-
     document.getElementById('btn-f3').onclick = () => {
-      const saved = localStorage.getItem('clawterm_session_id');
-      if (uiState === 'session') {
-        term.writeln('\r\n\x1b[96mSaved sessions:\x1b[0m');
-        term.writeln('  ' + (saved ? '0x' + parseInt(saved).toString(16).toUpperCase().padStart(8,'0') + ' (last)' : 'none'));
-        term.writeln('');
-      }
+      const s = localStorage.getItem('clawterm_session_id');
+      term.writeln('\r\n\x1b[96mSaved: ' + (s ? '0x'+parseInt(s).toString(16).toUpperCase() : 'none') + '\x1b[0m\r\n');
     };
 
-    // ── APPLID input: live update VTAM screen + ENTER to connect ─────────
-    applidInput.addEventListener('input', () => {
-      if (uiState === 'vtam') renderVtam();
-    });
-
+    applidInput.addEventListener('input', () => { if (uiState === 'vtam') renderVtam(); });
     applidInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && uiState === 'vtam') {
-        e.preventDefault();
-        doConnect(null, getApplid());
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleEsc();
-      }
+      if (e.key === 'Enter' && uiState === 'vtam') { e.preventDefault(); doConnect(null, getApplid()); }
+      if (e.key === 'Escape') { e.preventDefault(); handleEsc(); }
     });
 
-    // ── Keyboard F-key passthrough ────────────────────────────────────────
     document.addEventListener('keydown', (e) => {
-      // ESC key — but not when focus is on applid-input (handled above)
-      if (e.key === 'Escape' && document.activeElement !== applidInput) {
-        e.preventDefault();
-        handleEsc();
-        return;
-      }
-
-      // ENTER on VTAM screen
-      if (e.key === 'Enter' && uiState === 'vtam' && document.activeElement !== applidInput) {
-        e.preventDefault();
-        doConnect(null, getApplid());
-        return;
-      }
-
+      if (e.key === 'Escape' && document.activeElement !== applidInput) { e.preventDefault(); handleEsc(); return; }
+      if (e.key === 'Enter' && uiState === 'vtam' && document.activeElement !== applidInput) { e.preventDefault(); doConnect(null, getApplid()); return; }
       if (e.key === 'F1') { e.preventDefault(); document.getElementById('btn-f1').click(); }
       if (e.key === 'F2') { e.preventDefault(); document.getElementById('btn-f2').click(); }
       if (e.key === 'F3') { e.preventDefault(); document.getElementById('btn-f3').click(); }
@@ -532,56 +427,8 @@
       if (e.key === 'F9') { e.preventDefault(); document.getElementById('btn-f9').click(); }
     });
 
-    // ── Boot: show splash ─────────────────────────────────────────────────
+    // ── Boot ──────────────────────────────────────────────────────────────
     showSplash();
-  
-    // ── Diagnostics overlay ───────────────────────────────────────────────
-    function dovSet(id, state, text) {
-      const dot = document.getElementById('dov-' + id + '-dot');
-      const txt = document.getElementById('dov-' + id + '-txt');
-      if (!dot || !txt) return;
-      const colors = { green: '#00e676', yellow: '#ffd740', red: '#ff4444', grey: '#555' };
-      dot.style.background = colors[state] || '#555';
-      dot.style.boxShadow = state === 'green' ? '0 0 5px #00e676' : state === 'yellow' ? '0 0 5px #ffd740' : 'none';
-      txt.style.color = colors[state] || '#555';
-      txt.textContent = text;
-    }
-
-    // Check internet connectivity
-    fetch('https://dns.google/resolve?name=google.com&type=A', { mode: 'no-cors' })
-      .then(() => dovSet('internet', 'green', 'INTERNET  ok'))
-      .catch(() => dovSet('internet', 'red',   'INTERNET  OFFLINE'));
-
-    // Check xterm loaded
-    if (typeof Terminal !== 'undefined') {
-      dovSet('xterm', 'green', 'XTERM     loaded v5.3');
-    } else {
-      dovSet('xterm', 'red', 'XTERM     FAILED');
-    }
-
-    // Hook into existing diag state to drive overlay
-    const _origSetDiag = setDiag;
-    window._dovOverrideSetDiag = function(id, state, tooltip) {
-      _origSetDiag(id, state, tooltip);
-      const applid = (document.getElementById('applid-input')?.value || '').trim().toUpperCase();
-      if (id === 'ws') {
-        if (state === 'green') dovSet('ws', 'green', 'BRIDGE    fleet-vm ok');
-        else if (state === 'yellow') dovSet('ws', 'yellow', 'BRIDGE    connecting...');
-        else dovSet('ws', 'grey', 'BRIDGE    waiting');
-      }
-      if (id === 'ip') {
-        if (state === 'green') dovSet('agent', 'green', 'AGENT     ' + (applid||'') + ' live');
-        else if (state === 'yellow') dovSet('agent', 'yellow', 'AGENT     ' + (applid||'') + ' authing...');
-        else dovSet('agent', 'grey', 'AGENT     no session');
-      }
-      if (id === 'vt') {
-        if (state === 'green') dovSet('agent', 'green', 'AGENT     ' + (applid||'') + ' LIVE');
-        else if (state === 'red') dovSet('agent', 'red', 'AGENT     disconnected');
-      }
-    };
-    // Monkey-patch - need to override after function is defined
-    // Instead hook through _diagState directly - already patched above
-
   </script>
 </body>
 </html>
