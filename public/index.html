@@ -40,14 +40,14 @@
       <!-- Layer 1: CNA Controller (clawd/VTAM) -->
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
         <span id="l1-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
-        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">CTRL</span>
-        <span id="l1-text" style="color:#666;font-size:11px;">clawd :7220</span>
+        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">BRIDGE</span>
+        <span id="l1-text" style="color:#666;font-size:11px;">bridge</span>
       </div>
       <!-- Layer 2: Target Agent -->
       <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
         <span id="l2-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
         <span style="color:#555;font-size:10px;letter-spacing:0.08em;">AGENT</span>
-        <span id="l2-text" style="color:#666;font-size:11px;">no session</span>
+        <span id="l2-text" style="color:#666;font-size:11px;">no agent</span>
       </div>
     </div>
     <div id="diag-ws" style="display:none"></div>
@@ -79,7 +79,7 @@
 
     <span class="hdr-sep">|</span>
 
-    <span id="session-info">no session</span>
+    <span id="session-info">no agent</span>
   </div>
 
   <div id="terminal-container"></div>
@@ -134,12 +134,12 @@
         l1dot.style.background = '#ffd740';
         l1dot.style.boxShadow = '0 0 6px #ffd740';
         l1text.style.color = '#ffd740';
-        l1text.textContent = 'connecting...';
+        l1text.textContent = 'bridge · connecting';
       } else {
         l1dot.style.background = '#ff4444';
         l1dot.style.boxShadow = 'none';
         l1text.style.color = '#555';
-        l1text.textContent = 'clawd :7220';
+        l1text.textContent = 'bridge · fleet-vm';
       }
 
       // Layer 2: Target agent session
