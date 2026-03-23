@@ -126,6 +126,7 @@
 
     let uiState = 'splash';
     let vtamRefreshTimer = null;
+    let isConnecting = false;
     const applidInput = document.getElementById('applid-input');
     function getApplid() {
       return (applidInput.value || 'BABY1').toUpperCase().padEnd(8, ' ').substring(0, 8);
@@ -312,6 +313,9 @@
     }
 
     function doConnect(resumeId, applid) {
+      if (isConnecting) return;
+      isConnecting = true;
+      setTimeout(() => { isConnecting = false; }, 3000);
       stopVtamRefresh();
       uiState = 'session';
       const applidStr = (applid || getApplid()).toUpperCase().padEnd(8,' ').substring(0,8);
