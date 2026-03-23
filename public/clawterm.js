@@ -183,6 +183,14 @@ class ClawTermClient {
           const ctrl = JSON.parse(text);
           if (ctrl._ctrl === 'ip_up'   && this.onIpUp)   { this.onIpUp();              return; }
           if (ctrl._ctrl === 'ip_down' && this.onIpDown)  { this.onIpDown(ctrl.reason); return; }
+          if (ctrl._ctrl === 'session_open') {
+            this.sessionId = ctrl.sessionId;
+            this.connected = true;
+            localStorage.setItem('clawterm_session_id', ctrl.sessionId);
+            if (this.onConnect) this.onConnect(ctrl.sessionId);
+            return;
+          }
+          if (ctrl._ctrl === 'data' && this.onData) { this.onData(ctrl.text); return; }
         } catch(e) {}
       }
     }

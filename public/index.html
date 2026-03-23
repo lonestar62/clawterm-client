@@ -272,10 +272,43 @@
     }
 
     // ── ClawTerm client ───────────────────────────────────────────────────
-    const wsUrl = `wss://${window.location.host}/clawterm-ws`;
-    const client = new ClawTermClient(wsUrl);
+    const wsUrl = (applid) => `wss://${window.location.host}/clawterm-ws?applid=${encodeURIComponent(applid)}`;
+    let client = null;
+    function getOrCreateClient(applid) {
+      if (client) { try { client.disconnect(); } catch(e) {} }
+      client = new ClawTermClient(wsUrl(applid));
+      return client;
+    }
 
     function doConnect(resumeId, applid) {
+      applid = (applid || getApplid()).trim();
+      const client = getOrCreateClient(applid);
+    client.onIpUp = () => {
+      setDiag('ip', 'green', 'IP: lobster:7220 \u2713');
+      term.writeln('\x1b[32m[IP]\x1b[0m \u2713 lobster:7220 connected');
+      term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT \u2192 clawd...');
+    };
+
+    client.onIpDown = (reason) => {
+      setDiag('ip', 'red', 'IP: lost \u2014 ' + (reason || '?'));
+      setDiag('vt', 'red', 'VT220: session suspended');
+      if (uiState === 'session') {
+        term.writeln('\x1b[31m[IP]\x1b[0m \u2717 lost: ' + (reason || 'TCP closed'));
+      }
+    };
+
+    client.onConnect = (sessionId) => {
+      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
+      setDiag('vt', 'green', 'VT220: session ' + hex + ' \u2713');
+      document.getElementById('session-info').textContent = 'session ' + hex;
+      document.getElementById('footer-session').textContent = 'session: ' + hex;
+      localStorage.setItem('clawterm_session_id', sessionId);
+      term.writeln('\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 session ' + hex);
+      term.writeln('\x1b[90m    All layers green. Type to send CF_DATA.\x1b[0m\r\n');
+      term.write('\x1b[32m$\x1b[0m ');
+    };
+
+    client.onData = (text) => term.write(text);
       stopVtamRefresh();
       uiState = 'session';
 
@@ -304,32 +337,7 @@
       };
     }
 
-    client.onIpUp = () => {
-      setDiag('ip', 'green', 'IP: lobster:7220 \u2713');
-      term.writeln('\x1b[32m[IP]\x1b[0m \u2713 lobster:7220 connected');
-      term.writeln('\x1b[90m[VT]\x1b[0m CF_CONNECT \u2192 clawd...');
-    };
 
-    client.onIpDown = (reason) => {
-      setDiag('ip', 'red', 'IP: lost \u2014 ' + (reason || '?'));
-      setDiag('vt', 'red', 'VT220: session suspended');
-      if (uiState === 'session') {
-        term.writeln('\x1b[31m[IP]\x1b[0m \u2717 lost: ' + (reason || 'TCP closed'));
-      }
-    };
-
-    client.onConnect = (sessionId) => {
-      const hex = '0x' + sessionId.toString(16).padStart(8, '0').toUpperCase();
-      setDiag('vt', 'green', 'VT220: session ' + hex + ' \u2713');
-      document.getElementById('session-info').textContent = 'session ' + hex;
-      document.getElementById('footer-session').textContent = 'session: ' + hex;
-      localStorage.setItem('clawterm_session_id', sessionId);
-      term.writeln('\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 session ' + hex);
-      term.writeln('\x1b[90m    All layers green. Type to send CF_DATA.\x1b[0m\r\n');
-      term.write('\x1b[32m$\x1b[0m ');
-    };
-
-    client.onData = (text) => term.write(text);
 
     client.onDisconnect = () => {
       setDiag('ws', 'red', 'WS: closed');

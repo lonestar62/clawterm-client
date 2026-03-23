@@ -1,5 +1,5 @@
 const express = require('express');
-const { WebSocketServer } = require('ws');
+const { WebSocketServer, WebSocket } = require('ws');
 const net = require('net');
 const http = require('http');
 const path = require('path');
@@ -31,12 +31,10 @@ wss.on('connection', (ws, req) => {
   const babyRoute = BABY_ROUTES[applid];
 
   if (babyRoute) {
-    // Baby claw: direct WebSocket gateway bridge
-    console.log();
+    console.log(`[clawterm-client] BABY connect: APPLID=${applid} -> ${babyRoute.host}:${babyRoute.port}`);
     handleBabySession(ws, applid, babyRoute);
   } else {
-    // Default: raw TCP proxy to clawd
-    console.log();
+    console.log(`[clawterm-client] WS connect from ${req.socket.remoteAddress}`);
     handleClawdSession(ws);
   }
 });
@@ -44,7 +42,7 @@ wss.on('connection', (ws, req) => {
 function handleClawdSession(ws) {
   const tcp = new net.Socket();
   tcp.connect(CLAWD_PORT, CLAWD_HOST, () => {
-    console.log();
+    console.log(`[clawterm-client] TCP connected to clawd ${CLAWD_HOST}:${CLAWD_PORT}`);
   });
   ws.on('message', (data) => { if (tcp.writable) tcp.write(data); });
   tcp.on('data', (data) => { if (ws.readyState === ws.OPEN) ws.send(data, { binary: true }); });
@@ -60,7 +58,6 @@ function handleClawdSession(ws) {
 }
 
 function handleBabySession(ws, applid, route) {
-  const WebSocket = require('ws');
   let gws = null;
   let gwReady = false;
   let reqId = 1;
@@ -71,29 +68,26 @@ function handleBabySession(ws, applid, route) {
   }
 
   function sendToAgent(text) {
-    const msg = { type: 'req', id: String(reqId++), method: 'chat.send', params: { sessionKey: 'main', message: text, idempotencyKey: crypto.randomUUID() } };
+    const msg = {
+      type: 'req',
+      id: String(reqId++),
+      method: 'chat.send',
+      params: { sessionKey: 'main', message: text, idempotencyKey: crypto.randomUUID() }
+    };
     if (gwReady) gwSendRaw(msg);
     else pending.push(msg);
   }
 
-  // Signal to browser: IP layer up
-  function signalIpUp() {
-    ws.send(JSON.stringify({ _ctrl: 'ip_up' }));
-  }
-  // Signal session established with fake session ID
-  function signalSessionOpen() {
-    ws.send(JSON.stringify({ _ctrl: 'session_open', sessionId: Math.floor(Math.random() * 0xFFFFFFFF) }));
-  }
-  // Send text to terminal
   function termWrite(text) {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ _ctrl: 'data', text }));
   }
 
-  gws = new WebSocket();
+  const gwUrl = 'ws://' + route.host + ':' + route.port + '/';
+  gws = new WebSocket(gwUrl);
 
-  gws.on('open', () => console.log());
+  gws.on('open', () => console.log('[clawterm-client] GW open ' + applid));
 
-  gws.on('message', raw => {
+  gws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch(e) { return; }
 
@@ -107,23 +101,23 @@ function handleBabySession(ws, applid, route) {
       return;
     }
 
-    if (msg.type === 'res' && msg.payload?.type === 'hello-ok') {
-      console.log();
+    if (msg.type === 'res' && msg.payload && msg.payload.type === 'hello-ok') {
+      console.log('[clawterm-client] GW authenticated ' + applid);
       gwReady = true;
-      signalIpUp();
-      signalSessionOpen();
-      termWrite();
+      // Signal IP and session up to browser
+      ws.send(JSON.stringify({ _ctrl: 'ip_up' }));
+      ws.send(JSON.stringify({ _ctrl: 'session_open', sessionId: Math.floor(Math.random() * 0xFFFFFFFF) }));
+      termWrite('\r\n\x1b[32m[VT]\x1b[0m \u2713 CF_ACCEPT \u2014 ' + applid + ' live\r\n\x1b[90m    All layers green. Type to send CF_DATA.\x1b[0m\r\n\r\n\x1b[32m$\x1b[0m ');
       for (const m of pending) gwSendRaw(m);
       pending = [];
       return;
     }
 
-    // Streaming agent response
+    // Streaming agent response deltas
     if (msg.type === 'event' && msg.event === 'agent') {
-      const delta = msg.payload?.data?.delta;
+      const delta = msg.payload && msg.payload.data && msg.payload.data.delta;
       if (delta) termWrite(delta);
-      // End of turn
-      if (msg.payload?.stream === 'lifecycle' && msg.payload?.data?.phase === 'end') {
+      if (msg.payload && msg.payload.stream === 'lifecycle' && msg.payload.data && msg.payload.data.phase === 'end') {
         termWrite('\r\n\x1b[32m$\x1b[0m ');
       }
       return;
@@ -131,34 +125,37 @@ function handleBabySession(ws, applid, route) {
   });
 
   gws.on('close', () => {
-    console.log();
-    if (ws.readyState === ws.OPEN) { ws.send(JSON.stringify({ _ctrl: 'ip_down', reason: 'gateway closed' })); ws.close(); }
+    console.log('[clawterm-client] GW closed ' + applid);
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify({ _ctrl: 'ip_down', reason: 'gateway closed' }));
+      ws.close();
+    }
   });
 
-  gws.on('error', err => {
-    console.error(, err.message);
-    if (ws.readyState === ws.OPEN) { ws.send(JSON.stringify({ _ctrl: 'ip_down', reason: err.message })); ws.close(); }
+  gws.on('error', (err) => {
+    console.error('[clawterm-client] GW error ' + applid + ':', err.message);
+    if (ws.readyState === ws.OPEN) {
+      ws.send(JSON.stringify({ _ctrl: 'ip_down', reason: err.message }));
+      ws.close();
+    }
   });
 
-  // Browser → baby claw
+  // Browser input -> baby claw
   ws.on('message', (data) => {
-    // Try JSON control message first
     try {
-      const str = data.toString();
-      const obj = JSON.parse(str);
+      const obj = JSON.parse(data.toString());
       if (obj._ctrl === 'send' && obj.text) { sendToAgent(obj.text); return; }
     } catch(e) {}
-    // Raw text
     const text = data.toString().trim();
     if (text) sendToAgent(text);
   });
 
   ws.on('close', () => {
-    console.log();
+    console.log('[clawterm-client] browser disconnected ' + applid);
     if (gws) gws.close();
   });
 }
 
 server.listen(PORT, () => {
-  console.log();
+  console.log('clawterm-client listening on :' + PORT);
 });
