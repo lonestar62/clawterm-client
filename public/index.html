@@ -352,7 +352,22 @@
 
       cl.onConnect = (sessionId) => {
         const hex = '0x' + sessionId.toString(16).padStart(8,'0').toUpperCase();
+        setDiag('ws', 'green', '');
+        setDiag('ip', 'green', '');
         setDiag('vt', 'green', 'live');
+        // Force direct DOM update in case setDiag state is stale
+        const l1d = document.getElementById('l1-dot');
+        const l2d = document.getElementById('l2-dot');
+        const l1v = document.getElementById('l1-val');
+        const l2v = document.getElementById('l2-val');
+        if (l1d) { l1d.style.background='#00e676'; l1d.style.boxShadow='0 0 5px #00e676'; }
+        if (l2d) { l2d.style.background='#00e676'; l2d.style.boxShadow='0 0 5px #00e676'; }
+        if (l1v) { l1v.style.color='#00e676'; l1v.textContent='fleet-vm ✓'; }
+        if (l2v) { l2v.style.color='#00e676'; l2v.textContent=applidStr.trim()+' LIVE'; }
+        const dpb = document.getElementById('dp-bridge-dot'); if(dpb) { dpb.style.color='#00e676'; dpb.style.textShadow='0 0 4px #00e676'; }
+        const dpa = document.getElementById('dp-agent-dot');  if(dpa) { dpa.style.color='#00e676'; dpa.style.textShadow='0 0 4px #00e676'; }
+        const dpbt = document.getElementById('dp-bridge-txt'); if(dpbt) { dpbt.style.color='#00e676'; dpbt.textContent='BRIDGE    fleet-vm ✓'; }
+        const dpat = document.getElementById('dp-agent-txt');  if(dpat) { dpat.style.color='#00e676'; dpat.textContent='AGENT     '+applidStr.trim()+' LIVE'; }
         document.getElementById('session-info').textContent = applidStr.trim() + ' · ' + hex;
         document.getElementById('footer-session').textContent = 'session: ' + hex;
         localStorage.setItem('clawterm_session_id', sessionId);
