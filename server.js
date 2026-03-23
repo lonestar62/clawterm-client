@@ -23,7 +23,12 @@ const BABY_ROUTES = {
   'BABY5':  { host: '100.114.163.66', port: 30804 },
 };
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+  }
+}));
 
 wss.on('connection', (ws, req) => {
   console.log('[clawterm-client] RAW req.url:', JSON.stringify(req.url));
@@ -142,13 +147,26 @@ function handleBabySession(ws, applid, route) {
     }
   });
 
-  // Browser input -> baby claw
+  // Browser input -> baby claw (handles CNA binary frames or plain text)
   ws.on('message', (data) => {
+    // JSON ctrl
     try {
       const obj = JSON.parse(data.toString());
       if (obj._ctrl === 'send' && obj.text) { sendToAgent(obj.text); return; }
     } catch(e) {}
-    const text = data.toString().trim();
+    // CNA binary frame: 0x7E [session:4] [seq:4] [type:1] [flags:1] [len:2] [payload] [crc:2]
+    const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    if (buf.length >= 15 && buf[0] === 0x7E) {
+      const type = buf[9];
+      const len  = buf.readUInt16BE(11);
+      if (type === 0x05 && buf.length >= 13 + len) { // CF_DATA
+        const payload = buf.slice(13, 13 + len).toString('utf8').trim();
+        if (payload) { console.log('[clawterm-client] CF_DATA ->', JSON.stringify(payload)); sendToAgent(payload); }
+      }
+      return; // all other CNA frames (PING, SUSPEND etc) ignored
+    }
+    // Fallback plain text
+    const text = buf.toString('utf8').trim();
     if (text) sendToAgent(text);
   });
 
