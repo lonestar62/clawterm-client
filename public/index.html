@@ -36,9 +36,19 @@
     <span id="logo">&#x26a1; CLAWTERM</span>
 
     <!-- Diagnostic indicators -->
-    <div id="status-pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;background:#1a1a1a;border:1px solid #333;font-size:11px;font-weight:700;letter-spacing:0.05em;">
-      <span id="status-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4444;"></span>
-      <span id="status-text" style="color:#aaa;">DISCONNECTED</span>
+    <div style="display:inline-flex;align-items:center;gap:10px;">
+      <!-- Layer 1: CNA Controller (clawd/VTAM) -->
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
+        <span id="l1-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
+        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">CTRL</span>
+        <span id="l1-text" style="color:#666;font-size:11px;">clawd :7220</span>
+      </div>
+      <!-- Layer 2: Target Agent -->
+      <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;background:#111;border:1px solid #222;font-size:11px;font-weight:700;">
+        <span id="l2-dot" style="width:7px;height:7px;border-radius:50%;background:#ff4444;transition:all 0.3s;"></span>
+        <span style="color:#555;font-size:10px;letter-spacing:0.08em;">AGENT</span>
+        <span id="l2-text" style="color:#666;font-size:11px;">no session</span>
+      </div>
     </div>
     <div id="diag-ws" style="display:none"></div>
     <div id="diag-ip" style="display:none"></div>
@@ -105,36 +115,49 @@
     }
 
     // ── Diagnostics ───────────────────────────────────────────────────────
-    // Status states: disconnected → connecting → ip_up → live
     function updateStatusPill() {
       const ws = _diagState.ws, ip = _diagState.ip, vt = _diagState.vt;
-      const dot  = document.getElementById('status-dot');
-      const text = document.getElementById('status-text');
-      const pill = document.getElementById('status-pill');
-      if (vt === 'green') {
-        dot.style.background = '#00e676';
-        dot.style.boxShadow = '0 0 6px #00e676';
-        text.style.color = '#00e676';
-        text.textContent = 'LIVE · ' + (document.getElementById('session-info').textContent || '');
-        pill.style.borderColor = '#00e67644';
-      } else if (ip === 'green' || ip === 'yellow') {
-        dot.style.background = '#ffd740';
-        dot.style.boxShadow = '0 0 6px #ffd740';
-        text.style.color = '#ffd740';
-        text.textContent = 'AUTHENTICATING';
-        pill.style.borderColor = '#ffd74044';
-      } else if (ws === 'green' || ws === 'yellow') {
-        dot.style.background = '#ffd740';
-        dot.style.boxShadow = '0 0 6px #ffd740';
-        text.style.color = '#ffd740';
-        text.textContent = 'CONNECTING';
-        pill.style.borderColor = '#ffd74044';
+      const l1dot  = document.getElementById('l1-dot');
+      const l1text = document.getElementById('l1-text');
+      const l2dot  = document.getElementById('l2-dot');
+      const l2text = document.getElementById('l2-text');
+      const applid = (document.getElementById('applid-input')?.value || '').trim().toUpperCase();
+      const isBaby = applid.startsWith('BABY');
+
+      // Layer 1: Controller (clawd for legacy, or "CTRL" for baby)
+      if (ws === 'green' || ws === 'yellow') {
+        l1dot.style.background = '#00e676';
+        l1dot.style.boxShadow = '0 0 6px #00e676';
+        l1text.style.color = '#00e676';
+        l1text.textContent = isBaby ? 'GW :30801' : 'clawd :7220';
+      } else if (ws === 'yellow') {
+        l1dot.style.background = '#ffd740';
+        l1dot.style.boxShadow = '0 0 6px #ffd740';
+        l1text.style.color = '#ffd740';
+        l1text.textContent = 'connecting...';
       } else {
-        dot.style.background = '#ff4444';
-        dot.style.boxShadow = 'none';
-        text.style.color = '#888';
-        text.textContent = 'DISCONNECTED';
-        pill.style.borderColor = '#333';
+        l1dot.style.background = '#ff4444';
+        l1dot.style.boxShadow = 'none';
+        l1text.style.color = '#555';
+        l1text.textContent = 'clawd :7220';
+      }
+
+      // Layer 2: Target agent session
+      if (vt === 'green') {
+        l2dot.style.background = '#00e676';
+        l2dot.style.boxShadow = '0 0 6px #00e676';
+        l2text.style.color = '#00e676';
+        l2text.textContent = (applid || 'agent') + ' · live';
+      } else if (ip === 'yellow' || ip === 'green') {
+        l2dot.style.background = '#ffd740';
+        l2dot.style.boxShadow = '0 0 6px #ffd740';
+        l2text.style.color = '#ffd740';
+        l2text.textContent = (applid || 'agent') + ' · authing';
+      } else {
+        l2dot.style.background = '#ff4444';
+        l2dot.style.boxShadow = 'none';
+        l2text.style.color = '#555';
+        l2text.textContent = 'no session';
       }
     }
     const _diagState = {ws:'red', ip:'red', vt:'red'};
