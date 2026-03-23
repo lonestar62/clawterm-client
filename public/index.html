@@ -393,7 +393,16 @@
     term.onData((data) => {
       if (uiState !== 'session' || !client) return;
       client.sendData(data);
-      term.write(data);
+      // Handle backspace visually
+      if (data === '' || data === '') {
+        term.write(' '); // move back, erase, move back
+      } else if (data === '' || data === '
+') {
+        term.write('
+');  // newline after Enter
+      } else {
+        term.write(data);
+      }
     });
 
     function handleEsc() {
