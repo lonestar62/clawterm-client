@@ -82,7 +82,22 @@
     <span id="session-info">no agent</span>
   </div>
 
-  <div id="terminal-container"></div>
+  <div style="position:relative;">
+    <div id="diag-overlay" style="
+      position:absolute; top:10px; right:10px; z-index:50;
+      background:rgba(0,0,0,0.88); border:1px solid #1e1e1e;
+      border-radius:8px; padding:10px 14px; font-family:'JetBrains Mono',monospace;
+      font-size:11px; line-height:2; min-width:230px;
+      pointer-events:none;
+    ">
+      <div style="color:#333;font-size:9px;letter-spacing:0.15em;margin-bottom:4px;">SYSTEM STATUS</div>
+      <div><span id="dov-internet-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-internet-txt" style="color:#444;">INTERNET   checking</span></div>
+      <div><span id="dov-xterm-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-xterm-txt" style="color:#444;">XTERM      loading</span></div>
+      <div><span id="dov-ws-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-ws-txt" style="color:#444;">BRIDGE     waiting</span></div>
+      <div><span id="dov-agent-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#333;margin-right:7px;vertical-align:middle;"></span><span id="dov-agent-txt" style="color:#444;">AGENT      no session</span></div>
+    </div>
+    <div id="terminal-container"></div>
+  </div>
 
   <div id="footer">
     <span id="footer-session">session: &mdash;</span>
