@@ -86,14 +86,13 @@
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
   <script src="clawterm.js"></script>
   <script>
-    // ── APPLID routing table (mirrors daemon) ──────────────────────────────
+    // ── APPLID routing table — Baby Claw pods on lobster-1 ──────────────────
     const APPLIDS = [
-      { applid: 'CLAW',   desc: 'Claw main agent',        host: '100.113.196.66',  port: 3000,  active: true  },
-      { applid: 'BRAIN',  desc: 'Brain neuroimaging',      host: '34.122.171.173',  port: 3001,  active: true  },
-      { applid: 'DEEP',   desc: 'DeepSeek-R1 (lobster)',   host: '100.114.163.66',  port: 11434, active: true  },
-      { applid: 'KEEPER', desc: 'Keeper NCL',              host: '34.122.171.173',  port: 3006,  active: true  },
-      { applid: 'FORGE',  desc: 'ClawForge portal',        host: '34.10.77.209',    port: 3010,  active: true  },
-      { applid: 'HURON',  desc: 'Huron County chatbot',    host: '34.122.171.173',  port: 5000,  active: false },
+      { applid: 'BABY1',  desc: 'Baby Claw 001',           host: '100.114.163.66',  port: 30801, active: true  },
+      { applid: 'BABY2',  desc: 'Baby Claw 002',           host: '100.114.163.66',  port: 30802, active: false },
+      { applid: 'BABY3',  desc: 'Baby Claw 003',           host: '100.114.163.66',  port: 30805, active: true  },
+      { applid: 'BABY4',  desc: 'Baby Claw 004',           host: '100.114.163.66',  port: 30803, active: true  },
+      { applid: 'BABY5',  desc: 'Baby Claw 005',           host: '100.114.163.66',  port: 30804, active: true  },
     ];
 
     // ── UI state ──────────────────────────────────────────────────────────
